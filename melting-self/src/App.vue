@@ -1,8 +1,24 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
+import lottie from 'lottie-web';
 
 const inputText = ref('');
 const isSealed = ref(false); 
+const lottieContainer = ref(null);
+let lottieAnimation = null;
+
+onMounted(() => {
+  // 初始化 lottie 动画（隐藏状态，仅在触发时显示）
+  if (lottieContainer.value) {
+    lottieAnimation = lottie.loadAnimation({
+      container: lottieContainer.value,
+      renderer: 'svg',
+      loop: false,
+      autoplay: false,
+      path: '/ripple.json'
+    });
+  }
+});
 
 const handleSeal = async () => {
   if (!inputText.value.trim()) return;
@@ -10,10 +26,19 @@ const handleSeal = async () => {
   // 触发动画
   isSealed.value = true;
   
-  // 调试模式：3.5秒后自动重置，方便你反复看效果
+  // 播放 lottie 动画
+  if (lottieAnimation) {
+    lottieAnimation.play();
+  }
+  
+  // 调试模式：3.5 秒后自动重置，方便你反复看效果
   setTimeout(() => {
     isSealed.value = false;
     inputText.value = ''; 
+    // 重置动画到第一帧
+    if (lottieAnimation) {
+      lottieAnimation.goToAndStop(0, true);
+    }
   }, 3500); 
 };
 </script>
@@ -29,6 +54,13 @@ const handleSeal = async () => {
 
     <main class="flex-1 w-full max-w-md px-6 flex flex-col items-center justify-center relative z-10">
       
+      <!-- Lottie 动画容器 -->
+      <div 
+        ref="lottieContainer" 
+        class="absolute inset-0 flex items-center justify-center pointer-events-none"
+        :class="{ 'opacity-0': !isSealed }"
+      ></div>
+
       <div 
         class="w-full flex flex-col items-center transition-all duration-[3000ms] ease-in-out"
         :class="{ 'opacity-0 translate-y-32 blur-md scale-75 pointer-events-none': isSealed }"
