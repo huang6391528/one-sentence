@@ -2,30 +2,6 @@
 import { ref, computed, onMounted } from 'vue';
 
 // ==========================================
-// 极低频地层轰鸣声
-// ==========================================
-const playTectonicShift = () => {
-  const AudioContext = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContext) return;
-  const ctx = new AudioContext();
-  const oscBass = ctx.createOscillator();
-  const gainBass = ctx.createGain();
-
-  oscBass.type = 'sine';
-  oscBass.frequency.setValueAtTime(40, ctx.currentTime);
-  oscBass.frequency.exponentialRampToValueAtTime(5, ctx.currentTime + 2.5);
-
-  gainBass.gain.setValueAtTime(0, ctx.currentTime);
-  gainBass.gain.linearRampToValueAtTime(0.9, ctx.currentTime + 0.1);
-  gainBass.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 2.5);
-
-  oscBass.connect(gainBass);
-  gainBass.connect(ctx.destination);
-  oscBass.start();
-  oscBass.stop(ctx.currentTime + 2.5);
-};
-
-// ==========================================
 // 1. 雕刻后的文本与数据
 // ==========================================
 const placeholders = [
@@ -55,7 +31,7 @@ const specimens = [
   {
     id: '#042',
     type: '镜像',
-    text: '那个曾经热烈过的“旧我”，成了审判此刻最严苛的法官。我们在隔着时间，审视一具陌生而完美的尸体。',
+    text: '那个曾经热烈过的“旧我”，成了审判此刻最严苛的法官。我们在隔着时间，审视一件陌生而完美的标本。',
   },
   { id: '#103', type: '凋零', text: '所谓怀旧，不是对青春的眷恋，而是对自我丧失的无力凭吊。我们哭泣，是惊觉那个自由意志的自己，早已被囚禁在过去的剪影里。' }
 ];
@@ -65,6 +41,15 @@ const introStep = ref(0);
 const showSplash = ref(false);
 const showManifesto = ref(false);
 const showAbout = ref(false);
+
+const showRecords = ref(false); // 地质剖面图层
+const showLockMessage = ref(false); // 月末未到提示
+const crackingPhase = ref(0); // 月末破裂动画阶段: 0关, 1黑屏, 2裂纹, 3透光, 4文字
+const isSilenced = ref(false); // 封存后的3秒静默
+const isPageShaking = ref(false); // 页面轻微震动
+const depthJump = ref(false); // 深度数字跳动
+const strataRecords = ref([]); // 地层记录数据
+
 const activeSpecimen = ref(null);
 
 const basePlaceholder = ref(placeholders[0]);
@@ -112,20 +97,61 @@ const nextIntroStep = () => {
   }
 };
 
+const isEndOfMonth = () => {
+  const today = new Date();
+  const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+  return tomorrow.getDate() === 1;
+};
+
+const openRecords = () => {
+  if (!isEndOfMonth()) {
+    showLockMessage.value = true;
+    setTimeout(() => { showLockMessage.value = false; }, 3000);
+    return;
+  }
+  
+  // 获取真实的本地历史数据
+  const savedRecords = JSON.parse(localStorage.getItem('melting_strata_records') || '[]');
+  if (savedRecords.length > 0) {
+    strataRecords.value = savedRecords.map((r, i) => ({
+      ...r,
+      title: `第${savedRecords.length - i}层 · ${r.date}`,
+      expanded: false
+    }));
+  } else {
+    strataRecords.value = [{ id: 0, title: '空', text: '地层深处空无一物。', expanded: false }];
+  }
+
+  // 开始月末仪式动画
+  crackingPhase.value = 1; // 阶段1：黑屏
+  setTimeout(() => {
+    // 取消延迟，让视觉裂纹和物理音频在同一毫秒绝对同时触发
+    crackingPhase.value = 2; // 阶段2：裂开
+    
+    const crackSound = new Audio('/crack.mp3');
+    crackSound.volume = 0.8;
+    crackSound.play().catch(e => console.log('音频被拦截', e));
+    
+    setTimeout(() => { crackingPhase.value = 3; // 阶段3：透光 (裂纹持续1.5秒后)
+      setTimeout(() => { crackingPhase.value = 4; }, 1000); // 阶段4：文字与按钮
+    }, 1500);
+  }, 500);
+};
+
 const toggleSpecimen = (id) => {
   activeSpecimen.value = activeSpecimen.value === id ? null : id;
+};
+
+const toggleRecord = (index) => {
+  strataRecords.value[index].expanded = !strataRecords.value[index].expanded;
 };
 
 const dynamicSinkStyle = computed(() => {
   if (!isSealed.value) return {};
   return {
-    // 方案A: 琥珀凝结
-    color: 'rgba(138, 129, 124, 0)', // 文字颜色消失
-    transform: 'translateY(20px) scale(0.95)', // 轻微下沉和缩小
-    filter: 'blur(8px)', // 融入背景的模糊
+    transform: 'translateY(40px)', // 向下沉40px
     opacity: 0,
-    transformOrigin: 'center center',
-    transition: 'all 4s cubic-bezier(0.22, 0.61, 0.36, 1)',
+    transition: 'all 2.5s ease-in', // 慢慢沉下去
   };
 });
 
@@ -164,26 +190,40 @@ onMounted(async () => {
 const handleSeal = async () => {
   if (!inputText.value.trim()) return;
 
-  playTectonicShift();
-  
-  // 真实的轰鸣：启用 boom.mp3
-  const boomSound = new Audio('/boom.mp3');
-  boomSound.volume = 0.8;
-  boomSound.play().catch(e => console.log('音频被拦截', e));
+  // 替换为更克制的石子声
+  const stoneSound = new Audio('/stone.mp3');
+  stoneSound.volume = 0.6;
+  stoneSound.play().catch(e => console.log('音频被拦截', e));
 
   isSealed.value = true;
-
-  // 这里暂时移除对 localhost 的网络请求，避免线上报错。
-  // 动画与仪式感保持不变。
+  
+  // 页面轻微震动 (持续0.2s)
+  isPageShaking.value = true;
+  setTimeout(() => { isPageShaking.value = false; }, 200);
 
   // 文本下沉动画结束后再增加深度
   setTimeout(() => {
     worldDepth.value += 1;
     todayDepth.value += 1;
-  }, 4000);
+    depthJump.value = true; // 触发深度数字跳动
+    setTimeout(() => { depthJump.value = false; }, 300);
+
+    // 将真实数据压入本地地层
+    const savedRecords = JSON.parse(localStorage.getItem('melting_strata_records') || '[]');
+    const newRecord = { id: Date.now(), date: todayDate.value, text: inputText.value };
+    savedRecords.unshift(newRecord);
+    if (savedRecords.length > 30) savedRecords.pop(); // 只保留最近30天
+    localStorage.setItem('melting_strata_records', JSON.stringify(savedRecords));
+  }, 2000);
+  
+  // 触发屏幕静默
+  setTimeout(() => {
+    isSilenced.value = true;
+  }, 2500);
 
   // 重置UI，等待下一次黎明
   setTimeout(() => {
+    isSilenced.value = false;
     isSealed.value = false;
     inputText.value = '';
     // 锁定今日输入
@@ -196,8 +236,8 @@ const handleSeal = async () => {
 <template>
   <!-- 根容器：根据 isSealed 状态切换“冷/暖”色调 -->
   <div
-    class="min-h-screen bg-[#0A0A09] flex flex-col items-center justify-center font-serif overflow-hidden relative selection:bg-[#8A817C]/30 selection:text-[#D6D2C4] transition-all duration-[3000ms] ease-in-out"
-    :class="{ 'warm-bg': !isSealed && isLampLit, 'cold-bg': isSealed || !isLampLit }"
+    class="min-h-screen bg-[#0A0A09] flex flex-col items-center justify-center font-serif overflow-hidden relative selection:bg-[#8A817C]/30 selection:text-[#D6D2C4] transition-all duration-[3000ms] ease-in-out page-scale-base"
+    :class="{ 'warm-bg': !isSealed && isLampLit, 'cold-bg': isSealed || !isLampLit, 'page-scale-shake': isPageShaking }"
   >
     <!-- 噪点质感层 (解决“太素”的问题) -->
     <div class="absolute inset-0 pointer-events-none z-[1] opacity-[0.04] mix-blend-overlay" style="background-image: url('data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.8%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E');"></div>
@@ -234,7 +274,7 @@ const handleSeal = async () => {
           <div class="flex flex-row sm:flex-col justify-between sm:justify-start items-start">
             <div class="mb-0 sm:mb-5">
               <p class="text-[#8A817C]/40 text-[10px] tracking-[0.4em] font-mono mb-1 sm:mb-1.5 uppercase">Total Depth</p>
-              <p class="text-[#D6D2C4]/70 text-xs sm:text-base tracking-widest font-mono">深度: {{ worldDepth.toLocaleString() }} 米</p>
+              <p class="text-[#D6D2C4]/70 text-xs sm:text-base tracking-widest font-mono inline-block transition-transform duration-200" :class="{'number-jump': depthJump}">深度: {{ worldDepth.toLocaleString() }} 米</p>
               <p v-if="currentEpoch" class="text-[#8A817C]/50 text-[10px] sm:text-[11px] tracking-widest mt-1 sm:mt-1.5 animate-pulse">{{ currentEpoch }}</p>
             </div>
             <div class="text-right sm:text-left">
@@ -252,7 +292,7 @@ const handleSeal = async () => {
         </header>
 
         <!-- 主输入区 (加入沉降震颤动画) -->
-        <main class="flex-1 w-full max-w-xl mx-auto px-6 sm:px-8 flex flex-col items-center justify-center relative z-10 my-10 sm:my-16 min-h-[250px]" :class="{'tectonic-shake': isSealed}">
+        <main class="flex-1 w-full max-w-xl mx-auto px-6 sm:px-8 flex flex-col items-center justify-center relative z-10 my-10 sm:my-16 min-h-[250px]">
           <div class="absolute top-[-30px] sm:top-[-40px] w-full text-center pointer-events-none transition-opacity duration-1000" :class="{ 'opacity-0': isSealed || inputText }">
             <p class="text-[10px] sm:text-xs text-[#D6D2C4]/30 tracking-[0.2em] sm:tracking-[0.3em] font-light italic leading-[1.8]">
               除了你，没有人会懂你此刻的感受。<br /><span class="opacity-50 mt-1 block">包括未来的你。</span>
@@ -308,20 +348,33 @@ const handleSeal = async () => {
               [ {{ isLampLit ? '熄灭火柴' : '划一根火柴' }} ]
             </button>
             <button
-              class="text-[10px] sm:text-xs tracking-[0.3em] text-[#8A817C]/30 hover:text-[#D6D2C4]/60 transition-colors pb-1 opacity-50 cursor-not-allowed"
-              title="暂未开放"
+              @click="openRecords"
+              class="text-[10px] sm:text-xs tracking-[0.3em] text-[#8A817C]/50 hover:text-[#D6D2C4]/80 transition-colors pb-1"
             >
               [ 地层记录 ]
             </button>
           </div>
         </footer>
       </div>
-
-      <!-- 封存成功提示居中悬浮 -->
-      <p v-if="isSealed" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] sm:text-xs tracking-[0.5em] text-[#8A817C]/80 animate-pulse z-10 pointer-events-none w-full text-center px-4 leading-[2.5]">
-        已压入地质层，<br class="sm:hidden" />连时间都会将它遗忘。
-      </p>
     </template>
+
+    <!-- 沉降后的3秒绝对静默屏 -->
+    <transition name="fade-slow">
+      <div v-if="isSilenced" class="absolute inset-0 z-[70] bg-[#0A0A09] flex items-center justify-center pointer-events-none">
+        <p class="text-[#8A817C]/50 text-xs sm:text-sm tracking-[0.8em] font-light mix-blend-screen pl-3">
+          已沉入地层。
+        </p>
+      </div>
+    </transition>
+
+    <!-- 未到月末的克制提示 -->
+    <transition name="fade">
+      <div v-if="showLockMessage" class="absolute inset-0 z-[80] bg-[#0A0A09]/95 backdrop-blur-md flex items-center justify-center pointer-events-none">
+        <p class="text-[#D6D2C4]/40 text-xs tracking-[0.6em] font-light text-center leading-[3]">
+          地层需要时间。<br>月末会打开。
+        </p>
+      </div>
+    </transition>
 
     <!-- 标本盒：抽屉式动画 -->
     <transition name="drawer">
@@ -377,6 +430,61 @@ const handleSeal = async () => {
         </div>
       </div>
     </transition>
+
+    <!-- 月末破裂仪式与光 -->
+    <div v-if="crackingPhase > 0" class="absolute inset-0 z-[100] bg-[#050505] flex flex-col items-center justify-center overflow-hidden">
+      <div v-if="crackingPhase >= 2" class="relative w-full h-full flex items-center justify-center">
+        <!-- 透光特效 -->
+        <div v-if="crackingPhase >= 3" class="absolute w-[2px] h-[70%] bg-[#D6D2C4] blur-[12px] opacity-80 animate-pulse"></div>
+        <!-- 裂痕线条 -->
+        <svg class="absolute w-16 h-[120%] z-10 opacity-70" viewBox="0 0 100 1000" preserveAspectRatio="none">
+           <path class="crack-path" :class="{'crack-glow': crackingPhase >= 3}"
+              d="M50,0 L38,120 L62,280 L42,450 L58,600 L35,780 L65,880 L45,1000"
+              fill="none" stroke="#2A2A2A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            />
+        </svg>
+      </div>
+      <!-- 仪式文字 -->
+      <transition name="fade">
+        <div v-if="crackingPhase === 4" class="absolute z-20 flex flex-col items-center gap-12">
+          <p class="text-[#D6D2C4]/70 text-sm sm:text-base tracking-[0.8em] font-light shadow-text">压力形成了地层。</p>
+          <button @click="showRecords = true; crackingPhase = 0;" class="text-[10px] sm:text-xs tracking-[0.4em] text-[#8A817C] hover:text-[#D6D2C4] transition-all border border-[#8A817C]/20 hover:border-[#8A817C]/60 px-8 py-3 bg-[#0A0A09]/50 backdrop-blur-sm">
+            [ 查看这一月 ]
+          </button>
+        </div>
+      </transition>
+    </div>
+
+    <!-- 月末地质剖面图 (回看界面) -->
+    <transition name="fade">
+      <div v-if="showRecords" class="absolute inset-0 z-[90] bg-[#0A0A09] flex flex-col items-center pt-24 pb-12 px-6 overflow-y-auto custom-scrollbar">
+        <button @click="showRecords = false" class="absolute top-8 right-8 text-[#D6D2C4]/30 hover:text-[#D6D2C4] text-3xl font-light fixed z-50">×</button>
+        
+        <div class="text-center mb-16 relative z-10">
+          <h2 class="text-xs sm:text-sm tracking-[1em] font-light text-[#8A817C] opacity-50 uppercase ml-2">Stratum Section</h2>
+        </div>
+
+        <!-- 剖面图容器 -->
+        <div class="w-full max-w-lg flex flex-col relative z-10">
+          <!-- 贯穿地层的纵向刻度线 -->
+          <div class="absolute left-[40px] top-0 bottom-0 w-[1px] bg-[#8A817C]/10"></div>
+          
+          <div v-for="(record, index) in strataRecords" :key="record.id" class="w-full flex flex-col">
+            <!-- 地层横截面线 -->
+            <button @click="toggleRecord(index)" class="group w-full py-5 flex items-center gap-6 text-left focus:outline-none relative">
+              <div class="w-[80px] h-[1px] bg-[#8A817C]/20 group-hover:bg-[#D6D2C4]/60 transition-colors z-10 origin-left scale-x-75 group-hover:scale-x-100"></div>
+              <span class="text-[#8A817C]/40 group-hover:text-[#D6D2C4]/70 text-[10px] sm:text-xs tracking-[0.3em] font-mono transition-colors">
+                {{ record.title }}
+              </span>
+            </button>
+            <!-- 挖出的文字 -->
+            <div class="overflow-hidden transition-all duration-700 ease-in-out pl-[104px]" :class="record.expanded ? 'max-h-40 opacity-100 pb-8' : 'max-h-0 opacity-0 pb-0'">
+              <p class="text-[#D6D2C4]/50 text-xs sm:text-sm leading-loose tracking-widest">{{ record.text }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -410,18 +518,49 @@ const handleSeal = async () => {
   animation: flicker 3s infinite alternate cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* 地质重压震颤动画 */
-@keyframes heavy-drop {
-  0% { transform: translateY(0); }
-  10% { transform: translateY(6px); }
-  30% { transform: translateY(-1px); }
-  50% { transform: translateY(3px); }
-  100% { transform: translateY(0); }
+/* 页面极轻微震动 */
+.page-scale-base {
+  transition: transform 0.2s ease-in-out;
 }
-.tectonic-shake {
-  animation: heavy-drop 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+.page-scale-shake {
+  transform: scale(1.002);
 }
 
+/* 数字跳动 */
+.number-jump {
+  transform: translateY(-4px) scale(1.1);
+  color: #D6D2C4 !important;
+  text-shadow: 0 0 8px rgba(214, 210, 196, 0.4);
+}
+
+/* 裂纹蔓延动画 */
+.crack-path {
+  stroke-dasharray: 2000;
+  stroke-dashoffset: 2000;
+  animation: draw-crack 1.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+@keyframes draw-crack {
+  to { stroke-dashoffset: 0; }
+}
+.crack-glow {
+  stroke: #D6D2C4;
+  filter: drop-shadow(0 0 4px rgba(214,210,196,0.6));
+  transition: all 1s ease;
+}
+
+.shadow-text {
+  text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+}
+
+/* 慢速淡入淡出 (用于静默屏) */
+.fade-slow-enter-active,
+.fade-slow-leave-active {
+  transition: opacity 2s ease-in-out;
+}
+.fade-slow-enter-from,
+.fade-slow-leave-to {
+  opacity: 0;
+}
 /* 动画过渡 */
 .fade-enter-active,
 .fade-leave-active {
