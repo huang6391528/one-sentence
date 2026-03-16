@@ -23,16 +23,21 @@ CREATE TABLE IF NOT EXISTS entries (
 )
 `).run();
 
-// 查询今日是否已写
+// 查询今日状态与历史总层数
 app.get("/status", (req, res) => {
   const today = new Date().toISOString().split("T")[0];
-  const row = db.prepare("SELECT * FROM entries WHERE date=?").get(today);
   
-  if (row) {
-    res.json({ hasWrittenToday: true });
-  } else {
-    res.json({ hasWrittenToday: false });
-  }
+  // 1. 查今天是否已写
+  const todayRow = db.prepare("SELECT * FROM entries WHERE date=?").get(today);
+  
+  // 2. 查历史总共写了多少条（这就是冰川的层数）
+  const countRow = db.prepare("SELECT COUNT(*) as total FROM entries").get();
+  const totalLayers = countRow.total || 0;
+  
+  res.json({ 
+    hasWrittenToday: !!todayRow, // 转换为布尔值
+    glacierLayers: totalLayers   // 返回总层数
+  });
 });
 
 // 写一句话（每天一次）

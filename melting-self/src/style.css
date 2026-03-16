@@ -2,38 +2,28 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 极暗深渊背景 */
 body {
-  background-color: #030509; /* 比纯黑更深邃的一点点幽蓝 */
-  color: #7a8cbf; /* 褪色的冰川蓝 */
+  background-color: #0A0F1C;
+  color: #E8EAED;
 }
 
-/* 核心：深渊沉没过渡动画 */
-.sink-enter-active,
-.sink-leave-active {
-  /* 调整为3秒的缓慢沉没，带有水中的阻力感 */
-  transition: all 3s cubic-bezier(0.25, 0.8, 0.25, 1); 
+/* 极慢的淡入动画 (页面加载时) */
+@keyframes slow-fade-in {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.sink-leave-to {
+.fade-in-init {
+  animation: slow-fade-in 1.2s ease-out forwards;
+}
+
+/* 核心：文字逐字淡出+下沉没 (模拟陷入冰川) */
+.sink-deep-active {
+  transition: all 4s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.sink-deep-to {
   opacity: 0;
-  transform: translateY(120px) scale(0.85); /* 沉入下方并缩小 */
-  filter: blur(15px); /* 在水中视线模糊的效果，极其重要 */
-}
-
-/* 核心：冰面破裂/水波纹扩散动画 */
-@keyframes abyss-ripple {
-  0% { 
-    box-shadow: 0 0 0 0 rgba(122, 140, 191, 0.2); 
-    background-color: rgba(122, 140, 191, 0.1);
-  }
-  100% { 
-    box-shadow: 0 0 0 100vw rgba(122, 140, 191, 0); 
-    background-color: transparent;
-  }
-}
-
-/* 触发水波纹的类名 */
-.trigger-ripple {
-  animation: abyss-ripple 3s ease-out forwards;
+  transform: translateY(150px) scale(0.85); /* 沉得更深 */
+  filter: blur(15px);
 }
