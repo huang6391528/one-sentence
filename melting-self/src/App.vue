@@ -26,26 +26,13 @@ const playTectonicShift = () => {
 };
 
 // ==========================================
-// 真实音效播放 (MP3)
-// ==========================================
-const playRealSound = () => {
-  const audio = new Audio('/boom.mp3');
-  audio.volume = 0.6;
-  audio.play().catch((e) => console.log('音频播放被浏览器拦截，需要用户先产生交互', e));
-};
-
-// ==========================================
-// 点一盏灯功能
-// ==========================================
-const isLampLit = ref(false);
-
-const toggleLamp = () => {
-  isLampLit.value = !isLampLit.value;
-};
-
-// ==========================================
 // 1. 雕刻后的文本与数据
 // ==========================================
+const placeholders = [
+  "这里没有围观...",
+  "写下它，然后压入地层...",
+  "只有时间在听...",
+];
 const introTexts = [
   '18岁\n你相信努力会改变命运',
   '后来\n你拥有了很多身份',
@@ -54,31 +41,23 @@ const introTexts = [
 ];
 
 const specimens = [
-  {
-    id: '#009',
-    type: '夜行',
-    text: '凌晨三点的街道，没有任何人知道你存在过。城市像一台暂停的机器，只有路灯在运行。',
-  },
+  { id: '#009', type: '夜行', text: '凌晨三点的街道，没有任何人知道你存在过。城市像一台暂停的机器，只有路灯在运行。' },
   {
     id: '#017',
     type: '异化',
-    text: '我们以为自己在向上攀登。后来才发现，那只是把石头推上另一条转速更快的履带。',
+    text: '我们以为自己在向上攀登，后来才发现，那只是把石头推上另一条转速更快的履带。',
   },
   {
     id: '#024',
     type: '荣光',
-    text: '曾经跨越山海的勋章，成了一枚枚钉死在标本盒里的蝴蝶。美得窒息，却早已没有生命。',
+    text: '曾经跨越山海的勋章，成了一枚枚钉死在标本盒里的蝴蝶。美得窒息，却毫无生机。',
   },
   {
     id: '#042',
     type: '镜像',
-    text: '那个曾经热烈过的“旧我”，成了审判此刻最严苛的法官。我们隔着时间，审视一具陌生而完美的尸体。',
+    text: '那个曾经热烈过的“旧我”，成了审判此刻最严苛的法官。我们在隔着时间，审视一具陌生而完美的尸体。',
   },
-  {
-    id: '#103',
-    type: '凋零',
-    text: '所谓怀旧，不是对青春的眷恋，而是对自我丧失的无力凭吊。我们哭泣，是忽然发现——那个自由意志的自己，早已被囚禁在过去的剪影里。',
-  },
+  { id: '#103', type: '凋零', text: '所谓怀旧，不是对青春的眷恋，而是对自我丧失的无力凭吊。我们哭泣，是惊觉那个自由意志的自己，早已被囚禁在过去的剪影里。' }
 ];
 
 const hasSeenIntro = ref(true);
@@ -88,21 +67,36 @@ const showManifesto = ref(false);
 const showAbout = ref(false);
 const activeSpecimen = ref(null);
 
+const basePlaceholder = ref(placeholders[0]);
 const inputText = ref('');
 const isSealed = ref(false);
 const maxChars = 140;
 const worldDepth = ref(0);
+const todayDepth = ref(0); // 模拟今日新增深度
+
+const hasPostedToday = ref(false); // 今日是否已书写
+
+const isLampLit = ref(false);
+const toggleLamp = () => {
+  isLampLit.value = !isLampLit.value;
+};
 
 const todayDate = computed(() => {
   const d = new Date();
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
 });
 
+// 动态生成的占位符
+const currentPlaceholder = computed(() => {
+  if (hasPostedToday.value) return "今日的重量已落入地底。请等待下一个黑夜。";
+  return basePlaceholder.value;
+});
+
 // ==========================================
 // 2. 隐藏细节：纪元系统
 // ==========================================
 const currentEpoch = computed(() => {
-  if (worldDepth.value >= 10000) return '化石纪元';
+  if (worldDepth.value >= 10000) return '黑曜石纪元';
   if (worldDepth.value >= 1000) return '沉积纪元';
   if (worldDepth.value >= 100) return '第一层地壳已形成';
   return '';
@@ -125,14 +119,21 @@ const toggleSpecimen = (id) => {
 const dynamicSinkStyle = computed(() => {
   if (!isSealed.value) return {};
   return {
-    color: 'rgba(58, 41, 29, 0.92)',
-    transform: 'translateY(150px) scaleY(0.01) scaleX(0.8)',
-    filter: 'blur(3px) grayscale(85%) contrast(1.15)',
-    opacity: 0.15,
+    // 方案A: 琥珀凝结
+    color: 'rgba(138, 129, 124, 0)', // 文字颜色消失
+    transform: 'translateY(20px) scale(0.95)', // 轻微下沉和缩小
+    filter: 'blur(8px)', // 融入背景的模糊
+    opacity: 0,
     transformOrigin: 'center center',
-    transition:
-      'transform 4s cubic-bezier(0.22, 0.61, 0.36, 1), filter 4s ease, color 4s ease, opacity 4s ease',
+    transition: 'all 4s cubic-bezier(0.22, 0.61, 0.36, 1)',
   };
+});
+
+const charColorClass = computed(() => {
+  const len = inputText.value.length;
+  if (len >= maxChars) return 'text-[#8A5A5A]/90';
+  if (len > 100) return 'text-[#8A817C]/90';
+  return 'text-[#D6D2C4]/40';
 });
 
 onMounted(async () => {
@@ -146,71 +147,67 @@ onMounted(async () => {
     }, 2500);
   }
 
-  try {
-    const res = await fetch('http://localhost:3000/status');
-    const data = await res.json();
-    worldDepth.value = data.glacierLayers || 0;
-  } catch (error) {
-    console.error('后端未连接');
+  basePlaceholder.value = placeholders[Math.floor(Math.random() * placeholders.length)];
+
+  // 检查本地存储，今天是否已经发过
+  const lastPostDate = localStorage.getItem('melting_last_post_date');
+  if (lastPostDate === new Date().toDateString()) {
+    hasPostedToday.value = true;
   }
+
+  // 第一次定稿版：采用“初始常量 + 本地递增”的伪动态机制
+  // 赋予产品初始的厚重感。等后续接入真实数据库后，再替换为真实请求。
+  worldDepth.value = 8432; 
+  todayDepth.value = 124; 
 });
 
 const handleSeal = async () => {
   if (!inputText.value.trim()) return;
 
   playTectonicShift();
-  playRealSound();
+  
+  // 真实的轰鸣：启用 boom.mp3
+  const boomSound = new Audio('/boom.mp3');
+  boomSound.volume = 0.8;
+  boomSound.play().catch(e => console.log('音频被拦截', e));
+
   isSealed.value = true;
 
-  try {
-    await fetch('http://localhost:3000/write', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: inputText.value }),
-    });
-  } catch (e) {
-    console.log(e);
-  }
+  // 这里暂时移除对 localhost 的网络请求，避免线上报错。
+  // 动画与仪式感保持不变。
 
+  // 文本下沉动画结束后再增加深度
   setTimeout(() => {
     worldDepth.value += 1;
-  }, 3000);
+    todayDepth.value += 1;
+  }, 4000);
 
+  // 重置UI，等待下一次黎明
   setTimeout(() => {
     isSealed.value = false;
     inputText.value = '';
+    // 锁定今日输入
+    hasPostedToday.value = true;
+    localStorage.setItem('melting_last_post_date', new Date().toDateString());
   }, 6000);
-};
-
-// 后门：点击深度快速增加，方便查看纪元文字
-const testAddLayer = () => {
-  worldDepth.value += 25;
 };
 </script>
 
 <template>
+  <!-- 根容器：根据 isSealed 状态切换“冷/暖”色调 -->
   <div
-    class="min-h-screen bg-[#0A0A09] flex flex-col items-center justify-center font-serif overflow-hidden relative selection:bg-[#8A817C]/30 selection:text-[#D6D2C4]"
+    class="min-h-screen bg-[#0A0A09] flex flex-col items-center justify-center font-serif overflow-hidden relative selection:bg-[#8A817C]/30 selection:text-[#D6D2C4] transition-all duration-[3000ms] ease-in-out"
+    :class="{ 'warm-bg': !isSealed && isLampLit, 'cold-bg': isSealed || !isLampLit }"
   >
-    <video
-      class="absolute inset-0 w-full h-full object-cover opacity-30 pointer-events-none z-0"
-      autoplay
-      muted
-      loop
-      playsinline
-    >
-      <!-- <source src="/placeholder-depth.mp4" type="video/mp4" /> -->
-    </video>
+    <!-- 噪点质感层 (解决“太素”的问题) -->
+    <div class="absolute inset-0 pointer-events-none z-[1] opacity-[0.04] mix-blend-overlay" style="background-image: url('data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.8%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E');"></div>
 
-    <div
-      class="absolute inset-0 pointer-events-none z-0"
-      style="
-        background:
-          radial-gradient(circle at center, rgba(22, 18, 15, 0.18) 0%, rgba(7, 7, 7, 0.74) 42%, rgba(3, 3, 3, 0.96) 100%),
-          radial-gradient(circle at top, rgba(214, 210, 196, 0.035) 0%, transparent 34%, rgba(0, 0, 0, 0.78) 100%);
-      "
-    ></div>
+    <!-- 划一根火柴：带有摇曳动画的火光 -->
+    <div v-if="isLampLit && !isSealed" class="absolute top-1/2 left-1/2 z-[2] pointer-events-none transition-opacity duration-1000 animate-flicker">
+      <div class="w-[70vw] h-[70vw] max-w-[600px] max-h-[600px] rounded-full opacity-80" style="background: radial-gradient(circle, rgba(230, 130, 40, 0.25) 0%, rgba(180, 60, 40, 0.12) 35%, transparent 70%); filter: blur(50px);"></div>
+    </div>
 
+    <!-- 介绍引导 -->
     <div v-if="!hasSeenIntro" class="z-50 w-full max-w-2xl px-8 flex flex-col items-center justify-center min-h-screen cursor-pointer" @click="nextIntroStep">
       <transition name="fade" mode="out-in">
         <p :key="introStep" class="text-[#D6D2C4]/70 text-lg leading-[2.5] tracking-[0.2em] text-center whitespace-pre-line">
@@ -219,127 +216,121 @@ const testAddLayer = () => {
       </transition>
     </div>
 
+    <!-- 闪屏 -->
     <transition name="fade">
       <div v-if="hasSeenIntro && showSplash" class="absolute inset-0 z-40 flex items-center justify-center bg-[#0A0A09]">
         <p class="text-[#D6D2C4]/40 text-sm tracking-[0.5em] font-light animate-pulse">你今天，存在过吗？</p>
       </div>
     </transition>
 
+    <!-- 主界面 -->
     <template v-if="hasSeenIntro && !showSplash">
-      <div
-        class="absolute inset-0 pointer-events-none z-[1]"
-        style="
-          background:
-            linear-gradient(to bottom, rgba(0, 0, 0, 0.4), transparent 28%, rgba(0, 0, 0, 0.82) 100%),
-            radial-gradient(ellipse at bottom, rgba(73, 53, 38, 0.18) 0%, rgba(0, 0, 0, 0) 55%);
-        "
-      ></div>
-
-      <div v-if="isLampLit" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30">
-        <div class="w-8 h-8 bg-yellow-400 rounded-full shadow-lg animate-pulse" style="box-shadow: 0 0 40px 20px rgba(255, 165, 0, 0.3)"></div>
-        <div class="absolute top-8 left-1/2 transform -translate-x-1/2 w-1 h-16 bg-yellow-700 rounded-sm"></div>
-      </div>
-
-      <div class="absolute top-8 left-8 z-20 transition-opacity duration-1000" :class="{ 'opacity-0': isSealed }">
-        <div class="mb-4">
-          <p class="text-[#8A817C]/40 text-[9px] tracking-[0.3em] font-sans mb-1 uppercase">World Depth</p>
-          <p class="text-[#D6D2C4]/70 text-sm tracking-widest font-mono cursor-crosshair" @click="testAddLayer">{{ worldDepth.toLocaleString() }}</p>
-          <p v-if="currentEpoch" class="text-[#8A817C]/60 text-[10px] tracking-widest mt-1 animate-pulse">{{ currentEpoch }}</p>
+      <!-- 左上角：数据仪表盘 -->
+      <div class="absolute top-8 left-8 z-20 transition-opacity duration-[3000ms]" :class="{ 'opacity-20': isSealed }">
+        <div class="mb-5">
+          <p class="text-[#8A817C]/40 text-[10px] tracking-[0.4em] font-mono mb-1.5 uppercase">Total Depth</p>
+          <p class="text-[#D6D2C4]/70 text-base tracking-widest font-mono">当前地层深度：{{ worldDepth.toLocaleString() }} 米</p>
+          <p v-if="currentEpoch" class="text-[#8A817C]/50 text-[11px] tracking-widest mt-1.5 animate-pulse">{{ currentEpoch }}</p>
         </div>
         <div>
-          <p class="text-[#8A817C]/30 text-[8px] tracking-[0.2em] font-sans mb-1 uppercase">Today</p>
-          <p class="text-[#D6D2C4]/40 text-xs tracking-widest font-mono">{{ todayDate }}</p>
+          <p class="text-[#8A817C]/30 text-[10px] tracking-[0.4em] font-mono mb-1.5 uppercase">Today's Sink</p>
+          <p class="text-[#D6D2C4]/40 text-sm tracking-widest font-mono">今日新增沉降：{{ todayDepth.toLocaleString() }} 米</p>
         </div>
       </div>
 
-      <header class="w-full text-center pt-24 pb-8 z-10 transition-opacity duration-[3000ms] absolute top-0" :class="{ 'opacity-0': isSealed }">
-        <h1 class="text-[clamp(14px,2vw,18px)] tracking-[0.6em] font-light opacity-50 text-[#D6D2C4]">
-          把今天最痛的一句话，埋进时间的地层
+      <!-- 顶部标题 -->
+      <header class="w-full text-center pt-[12vh] pb-12 z-10 transition-opacity duration-[3000ms] absolute top-0" :class="{ 'opacity-0 pointer-events-none': isSealed }">
+        <h1 class="text-base sm:text-lg tracking-[0.6em] font-light opacity-60 text-[#D6D2C4]">
+          这里没有围观，写下它，然后把它压入地层。
         </h1>
       </header>
 
-      <main class="flex-1 w-full max-w-lg px-8 flex flex-col items-center justify-center relative z-10 mt-16">
-        <div class="absolute top-[-40px] w-full text-center pointer-events-none transition-opacity duration-1000" :class="{ 'opacity-0': isSealed }">
-          <p class="text-[10px] text-[#D6D2C4]/30 tracking-[0.3em] font-light italic">
+      <!-- 主输入区 (加入沉降震颤动画) -->
+      <main class="flex-1 w-full max-w-xl px-8 flex flex-col items-center justify-center relative z-10 mt-20" :class="{'tectonic-shake': isSealed}">
+        <div class="absolute top-[-40px] w-full text-center pointer-events-none transition-opacity duration-1000" :class="{ 'opacity-0': isSealed || inputText }">
+          <p class="text-xs text-[#D6D2C4]/30 tracking-[0.3em] font-light italic">
             除了你，没有人会懂你此刻的感受。<br /><span class="opacity-50 mt-1 block">包括未来的你。</span>
           </p>
         </div>
 
+        <!-- 雕刻感输入框容器 -->
         <div class="w-full flex flex-col items-center" :class="{ 'pointer-events-none': isSealed }" :style="dynamicSinkStyle">
-          <div class="w-full relative group">
+          <div class="w-full relative group p-5 rounded-sm" style="box-shadow: inset 0 1px 6px rgba(0,0,0,0.5);">
             <textarea
               v-model="inputText"
               :maxlength="maxChars"
-              placeholder=""
-              class="w-full h-32 bg-transparent text-[#D6D2C4]/90 text-lg focus:outline-none resize-none transition-colors peer leading-relaxed tracking-[0.1em]"
+              :placeholder="currentPlaceholder"
+              :disabled="isSealed || hasPostedToday"
+              class="w-full h-36 bg-transparent text-[#D6D2C4]/90 text-lg sm:text-xl focus:outline-none resize-none transition-colors peer leading-[1.8] tracking-[0.1em] disabled:opacity-40 disabled:cursor-not-allowed"
               style="caret-color: rgba(138, 129, 124, 0.6)"
             ></textarea>
-            <div class="absolute bottom-0 left-0 w-full h-[1px] bg-[#8A817C]/40 transition-all duration-700 peer-focus:bg-[#8A817C]/80"></div>
+            <div class="absolute bottom-5 left-5 w-[calc(100%-2.5rem)] h-[1px] bg-[#8A817C]/20 transition-all duration-700 peer-focus:bg-[#8A817C]/60" :class="{'opacity-20': hasPostedToday}"></div>
           </div>
 
           <div class="w-full flex justify-between items-end mt-6">
             <div class="flex flex-col gap-2">
-              <span class="text-[10px] font-sans transition-colors duration-300 tracking-widest" :class="inputText.length >= maxChars ? 'text-[#8A5A5A]/80' : 'text-[#D6D2C4]/30'">
+              <span class="text-xs font-mono transition-colors duration-300 tracking-widest" :class="charColorClass">
                 重量: {{ inputText.length }} / {{ maxChars }}
               </span>
-              <span class="text-[10px] text-[#D6D2C4]/20 font-mono tracking-widest">{{ todayDate }}</span>
             </div>
 
             <button
               @click="handleSeal"
-              :disabled="!inputText.trim()"
-              class="group relative w-24 h-9 border border-[#8A817C]/50 bg-transparent text-xs tracking-[0.4em] text-[#D6D2C4]/70 overflow-hidden transition-all duration-500 disabled:opacity-10 disabled:border-transparent hover:border-[#D6D2C4]/60"
+              :disabled="!inputText.trim() || hasPostedToday"
+              class="group relative w-28 h-10 border border-[#8A817C]/50 bg-transparent text-sm tracking-[0.4em] text-[#D6D2C4]/70 overflow-hidden transition-all duration-500 disabled:opacity-10 disabled:border-[#8A817C]/20 hover:border-[#D6D2C4]/80"
             >
-              <span class="relative z-10 group-hover:opacity-0 transition-opacity duration-500">埋下</span>
-              <span class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-500 text-[#0A0A09] bg-[#D6D2C4]/80 font-medium">
+              <!-- 修复重影：彻底通过 opacity 控制显示隐藏 -->
+              <span class="relative z-20 group-hover:opacity-0 transition-opacity duration-300">埋下</span>
+              <span class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-500 text-[#0A0A09] font-medium z-20">
                 封存
               </span>
+              <!-- 琥珀凝结/地质重压效果 -->
+              <div class="absolute inset-0 bg-[#D6D2C4] scale-y-0 group-hover:scale-y-100 transition-transform duration-500 ease-in-out origin-bottom z-10"></div>
             </button>
           </div>
         </div>
       </main>
 
-      <footer class="w-full absolute bottom-8 text-center z-10 flex flex-col items-center gap-4">
+      <!-- 底部导航与状态 -->
+      <footer class="w-full absolute bottom-8 text-center z-10 flex flex-col items-center gap-4 transition-opacity duration-[2000ms]" :class="{'opacity-0 pointer-events-none': isSealed}">
         <div class="flex gap-8">
-          <button v-if="!isSealed" @click="showManifesto = true" class="text-[9px] tracking-[0.2em] text-[#8A817C]/50 hover:text-[#D6D2C4]/80 transition-colors pb-1">
+          <button @click="showManifesto = true" class="text-[10px] sm:text-xs tracking-[0.3em] text-[#8A817C]/50 hover:text-[#D6D2C4]/80 transition-colors pb-1">
             [ 标本盒 ]
           </button>
-          <button v-if="!isSealed" @click="showAbout = true" class="text-[9px] tracking-[0.2em] text-[#8A817C]/40 hover:text-[#D6D2C4]/70 transition-colors pb-1">
+          <button @click="showAbout = true" class="text-[10px] sm:text-xs tracking-[0.3em] text-[#8A817C]/40 hover:text-[#D6D2C4]/70 transition-colors pb-1">
             [ 溯源 ]
           </button>
-          <button v-if="!isSealed" @click="toggleLamp" class="text-[9px] tracking-[0.2em] text-[#8A817C]/40 hover:text-[#D6D2C4]/70 transition-colors pb-1">
-            [ 点一盏灯 ]
+          <button @click="toggleLamp" class="text-[10px] sm:text-xs tracking-[0.3em] text-[#8A817C]/40 hover:text-[#D6D2C4]/70 transition-colors pb-1">
+            [ {{ isLampLit ? '熄灭火柴' : '划一根火柴' }} ]
           </button>
           <button
-            v-if="!isSealed"
-            class="text-[9px] tracking-[0.2em] text-[#8A817C]/30 hover:text-[#D6D2C4]/60 transition-colors pb-1 opacity-50 cursor-not-allowed"
+            class="text-[10px] sm:text-xs tracking-[0.3em] text-[#8A817C]/30 hover:text-[#D6D2C4]/60 transition-colors pb-1 opacity-50 cursor-not-allowed"
             title="暂未开放"
           >
             [ 地层记录 ]
           </button>
         </div>
-
-        <p v-if="!isSealed" class="text-[10px] tracking-[0.4em] text-[#D6D2C4]/20 transition-opacity duration-[3000ms]">
-          每个月末，它会结成化石。
-        </p>
-        <p v-else class="text-[10px] tracking-[0.4em] text-[#8A817C]/80 animate-pulse">
-          已压入地层，无人知晓。
-        </p>
       </footer>
+
+      <p v-if="isSealed" class="absolute bottom-12 text-xs tracking-[0.5em] text-[#8A817C]/80 animate-pulse z-10">
+        已压入地质层，连时间都会将它遗忘。
+      </p>
     </template>
 
-    <transition name="fade">
+    <!-- 标本盒：抽屉式动画 -->
+    <transition name="drawer">
       <div
         v-if="showManifesto"
-        class="absolute inset-0 z-50 bg-[#0A0A09]/98 backdrop-blur-md overflow-y-auto custom-scrollbar flex flex-col items-center py-24 px-6 sm:px-12"
+        class="absolute inset-x-0 bottom-0 z-50 bg-[#0f0e0d]/90 backdrop-blur-md overflow-y-auto custom-scrollbar flex flex-col items-center pt-24 pb-12 px-6 sm:px-12 rounded-t-lg border-t border-t-[#8A817C]/10"
+        style="max-height: 80vh;"
       >
-        <button @click="showManifesto = false" class="absolute top-8 right-8 text-[#D6D2C4]/30 hover:text-[#D6D2C4] text-3xl font-light">×</button>
+        <button @click="showManifesto = false" class="absolute top-6 right-8 text-[#D6D2C4]/30 hover:text-[#D6D2C4] text-3xl font-light">×</button>
         <div class="max-w-2xl w-full flex flex-col gap-8">
           <div class="text-center mb-12">
             <h2 class="text-lg md:text-xl tracking-[0.6em] font-light text-[#D6D2C4] opacity-80 mb-4">情绪标本馆</h2>
             <p class="text-[#8A817C]/50 text-xs tracking-[0.2em]">只保存重量。</p>
           </div>
-          <div class="flex flex-col w-full border-t border-[#8A817C]/10">
+          <div class="flex flex-col w-full">
             <div v-for="item in specimens" :key="item.id" class="border-b border-[#8A817C]/10">
               <button @click="toggleSpecimen(item.id)" class="w-full py-6 flex justify-between items-center text-[#D6D2C4]/50 hover:text-[#D6D2C4] transition-colors focus:outline-none">
                 <span class="font-mono text-sm tracking-widest">标本 {{ item.id }}</span>
@@ -354,22 +345,22 @@ const testAddLayer = () => {
       </div>
     </transition>
 
+    <!-- 溯源：羊皮纸质感 -->
     <transition name="fade">
-      <div v-if="showAbout" class="absolute inset-0 z-50 bg-[#0A0A09]/98 backdrop-blur-md flex flex-col items-center justify-center py-24 px-6 sm:px-12">
+      <div v-if="showAbout" class="absolute inset-0 z-50 bg-[#0A0A09]/80 backdrop-blur-sm flex items-center justify-center" @click="showAbout = false">
         <button @click="showAbout = false" class="absolute top-8 right-8 text-[#D6D2C4]/30 hover:text-[#D6D2C4] text-3xl font-light">×</button>
-        <div class="max-w-md w-full text-[#D6D2C4]/50 font-serif leading-[2.5] tracking-widest text-sm flex flex-col gap-8 text-center">
-          <p>
-            某个凌晨三点，风穿过空荡的街道。
-
-            那一刻的痛楚如此真实，却无处安放。
-
-            德令哈的夜风，和八个月后的此刻，在时间的褶皱里悄然重叠。
-
-            于是有了这片地层——
-
-            不是为了遗忘，而是让所有无法言说的重量，在沉默中被压成化石。
-
-            ——一个还在上学的人
+        <div
+          @click.stop
+          class="max-w-lg w-full text-[#d1c8b3] font-serif leading-[2.6] tracking-widest text-sm flex flex-col gap-6 text-center p-14 bg-transparent relative"
+          id="parchment"
+        >
+          <p>某个凌晨三点，风穿过空荡的街道。<br/>痛苦无声，却真实得无处安放。</p>
+          <p>人生犹如一辆夜行列车，<br/>我们途经荒原，四周寥落，万物萧索。</p>
+          <p>是绝对的孤独？还是灵魂的战栗？<br/>在这片言语无法抵达的深渊，<br/>悲喜交叠，最终化为巨大的空。</p>
+          <p>于是有了这片地层。<br/>不是为了遗忘，<br/>而是让所有无法言说的重量，<br/>在沉默中，被时间压成化石。</p>
+          <p class="text-right mt-4 opacity-70 font-mono text-xs tracking-widest">——一个还在读书的人</p>
+          <p class="text-center mt-8 opacity-40 text-[10px] tracking-[0.4em]">
+            这里没有围观。写下它，然后压入地层。
           </p>
           <a
             href="mailto:your-mailbox@example.com"
@@ -384,6 +375,48 @@ const testAddLayer = () => {
 </template>
 
 <style scoped>
+/* 仪式感翻转：冷暖背景切换 */
+.warm-bg {
+  background: radial-gradient(ellipse at bottom, rgba(73, 53, 38, 0.28) 0%, rgba(10, 10, 9, 1) 65%);
+}
+.cold-bg {
+  background-color: #0A0A09;
+}
+
+/* 溯源：羊皮纸效果 */
+#parchment {
+  background-color: #f3eacb;
+  color: #4a3f35;
+  box-shadow: 0 0 120px rgba(0,0,0,0.6), inset 0 0 40px rgba(0,0,0,0.2);
+  border: 1px solid #e0d6b3;
+  filter: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"><filter id="a" x="0" y="0" width="100%" height="100%"><feTurbulence baseFrequency=".05" numOctaves="5" seed="3" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(#a)" opacity=".1"/></svg>#a');
+}
+
+/* 火光摇曳动画 */
+@keyframes flicker {
+  0%, 100% { opacity: 0.85; transform: translate(-50%, -50%) scale(1); }
+  20% { opacity: 0.6; transform: translate(-50%, -50%) scale(0.98); }
+  40% { opacity: 0.9; transform: translate(-50%, -50%) scale(1.03); }
+  60% { opacity: 0.7; transform: translate(-50%, -50%) scale(1.01); }
+  80% { opacity: 0.5; transform: translate(-50%, -50%) scale(0.96); }
+}
+.animate-flicker {
+  animation: flicker 3s infinite alternate cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 地质重压震颤动画 */
+@keyframes heavy-drop {
+  0% { transform: translateY(0); }
+  10% { transform: translateY(6px); }
+  30% { transform: translateY(-1px); }
+  50% { transform: translateY(3px); }
+  100% { transform: translateY(0); }
+}
+.tectonic-shake {
+  animation: heavy-drop 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+/* 动画过渡 */
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 1.2s ease-in-out;
@@ -394,6 +427,17 @@ const testAddLayer = () => {
   opacity: 0;
 }
 
+.drawer-enter-active,
+.drawer-leave-active {
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.drawer-enter-from,
+.drawer-leave-to {
+  transform: translateY(100%);
+}
+
+/* 自定义滚动条 */
 .custom-scrollbar::-webkit-scrollbar {
   width: 2px;
 }
