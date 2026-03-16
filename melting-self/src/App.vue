@@ -214,6 +214,7 @@ const handleSeal = async () => {
           {{ introTexts[introStep] }}
         </p>
       </transition>
+      <p class="absolute bottom-16 text-[#D6D2C4]/20 text-[10px] tracking-[0.4em] animate-pulse">点击屏幕继续</p>
     </div>
 
     <!-- 闪屏 -->
@@ -225,95 +226,100 @@ const handleSeal = async () => {
 
     <!-- 主界面 -->
     <template v-if="hasSeenIntro && !showSplash">
-      <!-- 左上角：数据仪表盘 -->
-      <div class="absolute top-8 left-8 z-20 transition-opacity duration-[3000ms]" :class="{ 'opacity-20': isSealed }">
-        <div class="mb-5">
-          <p class="text-[#8A817C]/40 text-[10px] tracking-[0.4em] font-mono mb-1.5 uppercase">Total Depth</p>
-          <p class="text-[#D6D2C4]/70 text-base tracking-widest font-mono">当前地层深度：{{ worldDepth.toLocaleString() }} 米</p>
-          <p v-if="currentEpoch" class="text-[#8A817C]/50 text-[11px] tracking-widest mt-1.5 animate-pulse">{{ currentEpoch }}</p>
-        </div>
-        <div>
-          <p class="text-[#8A817C]/30 text-[10px] tracking-[0.4em] font-mono mb-1.5 uppercase">Today's Sink</p>
-          <p class="text-[#D6D2C4]/40 text-sm tracking-widest font-mono">今日新增沉降：{{ todayDepth.toLocaleString() }} 米</p>
-        </div>
-      </div>
-
-      <!-- 顶部标题 -->
-      <header class="w-full text-center pt-[12vh] pb-12 z-10 transition-opacity duration-[3000ms] absolute top-0" :class="{ 'opacity-0 pointer-events-none': isSealed }">
-        <h1 class="text-base sm:text-lg tracking-[0.6em] font-light opacity-60 text-[#D6D2C4]">
-          这里没有围观，写下它，然后把它压入地层。
-        </h1>
-      </header>
-
-      <!-- 主输入区 (加入沉降震颤动画) -->
-      <main class="flex-1 w-full max-w-xl px-8 flex flex-col items-center justify-center relative z-10 mt-20" :class="{'tectonic-shake': isSealed}">
-        <div class="absolute top-[-40px] w-full text-center pointer-events-none transition-opacity duration-1000" :class="{ 'opacity-0': isSealed || inputText }">
-          <p class="text-xs text-[#D6D2C4]/30 tracking-[0.3em] font-light italic">
-            除了你，没有人会懂你此刻的感受。<br /><span class="opacity-50 mt-1 block">包括未来的你。</span>
-          </p>
+      <!-- 采用全屏滚动容器，彻底解决手机端软键盘弹出和绝对定位导致的重叠挤盖问题 -->
+      <div class="absolute inset-0 flex flex-col overflow-y-auto overflow-x-hidden custom-scrollbar">
+        
+        <!-- 顶栏：数据仪表盘 (回归文档流，避免遮挡标题) -->
+        <div class="w-full px-6 pt-8 sm:px-8 sm:pt-8 flex-shrink-0 z-20 transition-opacity duration-[3000ms]" :class="{ 'opacity-20': isSealed }">
+          <div class="flex flex-row sm:flex-col justify-between sm:justify-start items-start">
+            <div class="mb-0 sm:mb-5">
+              <p class="text-[#8A817C]/40 text-[10px] tracking-[0.4em] font-mono mb-1 sm:mb-1.5 uppercase">Total Depth</p>
+              <p class="text-[#D6D2C4]/70 text-xs sm:text-base tracking-widest font-mono">深度: {{ worldDepth.toLocaleString() }} 米</p>
+              <p v-if="currentEpoch" class="text-[#8A817C]/50 text-[10px] sm:text-[11px] tracking-widest mt-1 sm:mt-1.5 animate-pulse">{{ currentEpoch }}</p>
+            </div>
+            <div class="text-right sm:text-left">
+              <p class="text-[#8A817C]/30 text-[10px] tracking-[0.4em] font-mono mb-1 sm:mb-1.5 uppercase">Today's Sink</p>
+              <p class="text-[#D6D2C4]/40 text-xs sm:text-sm tracking-widest font-mono">新增: {{ todayDepth.toLocaleString() }} 米</p>
+            </div>
+          </div>
         </div>
 
-        <!-- 雕刻感输入框容器 -->
-        <div class="w-full flex flex-col items-center" :class="{ 'pointer-events-none': isSealed }" :style="dynamicSinkStyle">
-          <div class="w-full relative group p-5 rounded-sm" style="box-shadow: inset 0 1px 6px rgba(0,0,0,0.5);">
-            <textarea
-              v-model="inputText"
-              :maxlength="maxChars"
-              :placeholder="currentPlaceholder"
-              :disabled="isSealed || hasPostedToday"
-              class="w-full h-36 bg-transparent text-[#D6D2C4]/90 text-lg sm:text-xl focus:outline-none resize-none transition-colors peer leading-[1.8] tracking-[0.1em] disabled:opacity-40 disabled:cursor-not-allowed"
-              style="caret-color: rgba(138, 129, 124, 0.6)"
-            ></textarea>
-            <div class="absolute bottom-5 left-5 w-[calc(100%-2.5rem)] h-[1px] bg-[#8A817C]/20 transition-all duration-700 peer-focus:bg-[#8A817C]/60" :class="{'opacity-20': hasPostedToday}"></div>
+        <!-- 顶部标题 -->
+        <header class="w-full text-center pt-10 sm:pt-[8vh] flex-shrink-0 z-10 transition-opacity duration-[3000ms]" :class="{ 'opacity-0 pointer-events-none': isSealed }">
+          <h1 class="text-sm sm:text-lg tracking-[0.3em] sm:tracking-[0.6em] font-light opacity-60 text-[#D6D2C4] px-6 leading-[2] sm:leading-relaxed break-words">
+            这里没有围观，<br class="sm:hidden" />写下它，然后压入地层。
+          </h1>
+        </header>
+
+        <!-- 主输入区 (加入沉降震颤动画) -->
+        <main class="flex-1 w-full max-w-xl mx-auto px-6 sm:px-8 flex flex-col items-center justify-center relative z-10 my-10 sm:my-16 min-h-[250px]" :class="{'tectonic-shake': isSealed}">
+          <div class="absolute top-[-30px] sm:top-[-40px] w-full text-center pointer-events-none transition-opacity duration-1000" :class="{ 'opacity-0': isSealed || inputText }">
+            <p class="text-[10px] sm:text-xs text-[#D6D2C4]/30 tracking-[0.2em] sm:tracking-[0.3em] font-light italic leading-[1.8]">
+              除了你，没有人会懂你此刻的感受。<br /><span class="opacity-50 mt-1 block">包括未来的你。</span>
+            </p>
           </div>
 
-          <div class="w-full flex justify-between items-end mt-6">
-            <div class="flex flex-col gap-2">
-              <span class="text-xs font-mono transition-colors duration-300 tracking-widest" :class="charColorClass">
-                重量: {{ inputText.length }} / {{ maxChars }}
-              </span>
+          <!-- 雕刻感输入框容器 -->
+          <div class="w-full flex flex-col items-center" :class="{ 'pointer-events-none': isSealed }" :style="dynamicSinkStyle">
+            <div class="w-full relative group p-5 rounded-sm" style="box-shadow: inset 0 1px 6px rgba(0,0,0,0.5);">
+              <textarea
+                v-model="inputText"
+                :maxlength="maxChars"
+                :placeholder="currentPlaceholder"
+                :disabled="isSealed || hasPostedToday"
+                class="w-full h-36 bg-transparent text-[#D6D2C4]/90 text-lg sm:text-xl focus:outline-none resize-none transition-colors peer leading-[1.8] tracking-[0.1em] disabled:opacity-40 disabled:cursor-not-allowed"
+                style="caret-color: rgba(138, 129, 124, 0.6)"
+              ></textarea>
+              <div class="absolute bottom-5 left-5 w-[calc(100%-2.5rem)] h-[1px] bg-[#8A817C]/20 transition-all duration-700 peer-focus:bg-[#8A817C]/60" :class="{'opacity-20': hasPostedToday}"></div>
             </div>
 
+            <div class="w-full flex justify-between items-end mt-6">
+              <div class="flex flex-col gap-2">
+                <span class="text-xs font-mono transition-colors duration-300 tracking-widest" :class="charColorClass">
+                  重量: {{ inputText.length }} / {{ maxChars }}
+                </span>
+              </div>
+
+              <button
+                @click="handleSeal"
+                :disabled="!inputText.trim() || hasPostedToday"
+                class="group relative w-28 h-10 border border-[#8A817C]/50 bg-transparent text-sm tracking-[0.4em] text-[#D6D2C4]/70 overflow-hidden transition-all duration-500 disabled:opacity-10 disabled:border-[#8A817C]/20 hover:border-[#D6D2C4]/80"
+              >
+                <span class="relative z-20 group-hover:opacity-0 transition-opacity duration-300">埋下</span>
+                <span class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-500 text-[#0A0A09] font-medium z-20">
+                  封存
+                </span>
+                <div class="absolute inset-0 bg-[#D6D2C4] scale-y-0 group-hover:scale-y-100 transition-transform duration-500 ease-in-out origin-bottom z-10"></div>
+              </button>
+            </div>
+          </div>
+        </main>
+
+        <!-- 底部导航与状态 -->
+        <footer class="w-full text-center z-10 flex flex-col items-center gap-4 transition-opacity duration-[2000ms] pb-10 sm:pb-12 flex-shrink-0 mt-auto" :class="{'opacity-0 pointer-events-none': isSealed}">
+          <div class="flex flex-wrap justify-center gap-x-6 gap-y-4 px-4 w-full">
+            <button @click="showManifesto = true" class="text-[10px] sm:text-xs tracking-[0.3em] text-[#8A817C]/50 hover:text-[#D6D2C4]/80 transition-colors pb-1">
+              [ 标本盒 ]
+            </button>
+            <button @click="showAbout = true" class="text-[10px] sm:text-xs tracking-[0.3em] text-[#8A817C]/40 hover:text-[#D6D2C4]/70 transition-colors pb-1">
+              [ 溯源 ]
+            </button>
+            <button @click="toggleLamp" class="text-[10px] sm:text-xs tracking-[0.3em] text-[#8A817C]/40 hover:text-[#D6D2C4]/70 transition-colors pb-1">
+              [ {{ isLampLit ? '熄灭火柴' : '划一根火柴' }} ]
+            </button>
             <button
-              @click="handleSeal"
-              :disabled="!inputText.trim() || hasPostedToday"
-              class="group relative w-28 h-10 border border-[#8A817C]/50 bg-transparent text-sm tracking-[0.4em] text-[#D6D2C4]/70 overflow-hidden transition-all duration-500 disabled:opacity-10 disabled:border-[#8A817C]/20 hover:border-[#D6D2C4]/80"
+              class="text-[10px] sm:text-xs tracking-[0.3em] text-[#8A817C]/30 hover:text-[#D6D2C4]/60 transition-colors pb-1 opacity-50 cursor-not-allowed"
+              title="暂未开放"
             >
-              <!-- 修复重影：彻底通过 opacity 控制显示隐藏 -->
-              <span class="relative z-20 group-hover:opacity-0 transition-opacity duration-300">埋下</span>
-              <span class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-500 text-[#0A0A09] font-medium z-20">
-                封存
-              </span>
-              <!-- 琥珀凝结/地质重压效果 -->
-              <div class="absolute inset-0 bg-[#D6D2C4] scale-y-0 group-hover:scale-y-100 transition-transform duration-500 ease-in-out origin-bottom z-10"></div>
+              [ 地层记录 ]
             </button>
           </div>
-        </div>
-      </main>
+        </footer>
+      </div>
 
-      <!-- 底部导航与状态 -->
-      <footer class="w-full absolute bottom-8 text-center z-10 flex flex-col items-center gap-4 transition-opacity duration-[2000ms]" :class="{'opacity-0 pointer-events-none': isSealed}">
-        <div class="flex gap-8">
-          <button @click="showManifesto = true" class="text-[10px] sm:text-xs tracking-[0.3em] text-[#8A817C]/50 hover:text-[#D6D2C4]/80 transition-colors pb-1">
-            [ 标本盒 ]
-          </button>
-          <button @click="showAbout = true" class="text-[10px] sm:text-xs tracking-[0.3em] text-[#8A817C]/40 hover:text-[#D6D2C4]/70 transition-colors pb-1">
-            [ 溯源 ]
-          </button>
-          <button @click="toggleLamp" class="text-[10px] sm:text-xs tracking-[0.3em] text-[#8A817C]/40 hover:text-[#D6D2C4]/70 transition-colors pb-1">
-            [ {{ isLampLit ? '熄灭火柴' : '划一根火柴' }} ]
-          </button>
-          <button
-            class="text-[10px] sm:text-xs tracking-[0.3em] text-[#8A817C]/30 hover:text-[#D6D2C4]/60 transition-colors pb-1 opacity-50 cursor-not-allowed"
-            title="暂未开放"
-          >
-            [ 地层记录 ]
-          </button>
-        </div>
-      </footer>
-
-      <p v-if="isSealed" class="absolute bottom-12 text-xs tracking-[0.5em] text-[#8A817C]/80 animate-pulse z-10">
-        已压入地质层，连时间都会将它遗忘。
+      <!-- 封存成功提示居中悬浮 -->
+      <p v-if="isSealed" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] sm:text-xs tracking-[0.5em] text-[#8A817C]/80 animate-pulse z-10 pointer-events-none w-full text-center px-4 leading-[2.5]">
+        已压入地质层，<br class="sm:hidden" />连时间都会将它遗忘。
       </p>
     </template>
 
@@ -351,7 +357,7 @@ const handleSeal = async () => {
         <button @click="showAbout = false" class="absolute top-8 right-8 text-[#D6D2C4]/30 hover:text-[#D6D2C4] text-3xl font-light">×</button>
         <div
           @click.stop
-          class="max-w-lg w-full text-[#d1c8b3] font-serif leading-[2.6] tracking-widest text-sm flex flex-col gap-6 text-center p-14 bg-transparent relative"
+          class="max-w-lg w-full max-h-[85vh] overflow-y-auto text-[#d1c8b3] font-serif leading-[2] sm:leading-[2.6] tracking-widest text-xs sm:text-sm flex flex-col gap-4 sm:gap-6 text-center p-8 sm:p-14 bg-transparent relative custom-scrollbar mx-4"
           id="parchment"
         >
           <p>某个凌晨三点，风穿过空荡的街道。<br/>痛苦无声，却真实得无处安放。</p>
