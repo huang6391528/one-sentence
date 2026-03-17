@@ -49,6 +49,8 @@ const isSilenced = ref(false); // 封存后的3秒静默
 const isPageShaking = ref(false); // 页面轻微震动
 const depthJump = ref(false); // 深度数字跳动
 const strataRecords = ref([]); // 地层记录数据
+const recentRecords = ref([]); // 往日回音数据（时间的刻痕）
+const isGenerating = ref(false); // 生成标本的状态
 
 const activeSpecimen = ref(null);
 
@@ -180,6 +182,10 @@ onMounted(async () => {
   if (lastPostDate === new Date().toDateString()) {
     hasPostedToday.value = true;
   }
+  
+  // 加载最近的记录作为“时间的刻痕”背景
+  const savedRecords = JSON.parse(localStorage.getItem('melting_strata_records') || '[]');
+  recentRecords.value = savedRecords.slice(0, 3);
 
   // 第一次定稿版：采用“初始常量 + 本地递增”的伪动态机制
   // 赋予产品初始的厚重感。等后续接入真实数据库后，再替换为真实请求。
@@ -214,6 +220,7 @@ const handleSeal = async () => {
     savedRecords.unshift(newRecord);
     if (savedRecords.length > 30) savedRecords.pop(); // 只保留最近30天
     localStorage.setItem('melting_strata_records', JSON.stringify(savedRecords));
+    recentRecords.value = savedRecords.slice(0, 3); // 更新刻痕数据
   }, 2000);
   
   // 触发屏幕静默
@@ -236,7 +243,7 @@ const handleSeal = async () => {
 <template>
   <!-- 根容器：根据 isSealed 状态切换“冷/暖”色调 -->
   <div
-    class="min-h-screen bg-[#0A0A09] flex flex-col items-center justify-center font-serif overflow-hidden relative selection:bg-[#8A817C]/30 selection:text-[#D6D2C4] transition-all duration-[3000ms] ease-in-out page-scale-base"
+    class="min-h-[100dvh] min-h-screen bg-[#0A0A09] flex flex-col items-center justify-center font-serif overflow-hidden relative selection:bg-[#8A817C]/30 selection:text-[#D6D2C4] transition-all duration-[3000ms] ease-in-out page-scale-base"
     :class="{ 'warm-bg': !isSealed && isLampLit, 'cold-bg': isSealed || !isLampLit, 'page-scale-shake': isPageShaking }"
   >
     <!-- 噪点质感层 (解决“太素”的问题) -->
@@ -299,6 +306,20 @@ const handleSeal = async () => {
             </p>
           </div>
 
+          <!-- 往日回音 (时间的刻痕) - 沉在输入框下方 -->
+          <div class="absolute inset-x-0 top-[60%] pointer-events-none flex flex-col items-center justify-start -z-10 transition-opacity duration-1000" :class="{ 'opacity-0': isSealed || inputText.length > 0 }">
+            <div v-for="(record, idx) in recentRecords" :key="'echo-'+idx"
+                 class="max-w-xl w-full text-center px-8 absolute"
+                 :style="{
+                   opacity: 0.08 - (idx * 0.025),
+                   filter: `blur(${1.5 + idx * 2}px)`,
+                   transform: `translateY(${40 + idx * 35}px) scale(${0.95 - idx * 0.05})`,
+                   zIndex: -idx
+                 }">
+              <p class="text-[#D6D2C4] text-base sm:text-lg leading-[1.8] tracking-[0.1em] line-clamp-1 select-none">{{ record.text }}</p>
+            </div>
+          </div>
+
           <!-- 雕刻感输入框容器 -->
           <div class="w-full flex flex-col items-center" :class="{ 'pointer-events-none': isSealed }" :style="dynamicSinkStyle">
             <div class="w-full relative group p-5 rounded-sm" style="box-shadow: inset 0 1px 6px rgba(0,0,0,0.5);">
@@ -352,6 +373,14 @@ const handleSeal = async () => {
               class="text-[10px] sm:text-xs tracking-[0.3em] text-[#8A817C]/50 hover:text-[#D6D2C4]/80 transition-colors pb-1"
             >
               [ 地层记录 ]
+            </button>
+            <button
+              v-if="hasPostedToday"
+              @click="generateSpecimen"
+              class="relative text-[10px] sm:text-xs tracking-[0.3em] text-[#8A817C]/50 hover:text-[#D6D2C4]/80 transition-colors pb-1"
+            >
+              [ 提取化石 ]
+              <span v-if="isGenerating" class="absolute -top-6 left-1/2 -translate-x-1/2 text-[9px] text-[#D6D2C4]/50 whitespace-nowrap">提取中...</span>
             </button>
           </div>
         </footer>
@@ -485,8 +514,57 @@ const handleSeal = async () => {
         </div>
       </div>
     </transition>
+
+    <!-- 电子标本生成底板 (隐藏于视口外) -->
+    <div class="fixed left-[-9999px] top-0 pointer-events-none z-[-1]">
+      <div id="specimen-card-template" class="w-[375px] bg-[#0A0A09] flex flex-col items-center justify-between p-12 relative overflow-hidden" style="height: 667px; font-family: 'Songti SC', 'STSong', serif;">
+        <!-- 噪点背景层 -->
+        <div class="absolute inset-0 z-[1] opacity-[0.05] mix-blend-overlay" style="background-image: url('data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.8%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E');"></div>
+        
+        <div class="w-full text-center z-10 pt-6">
+          <p class="text-[#8A817C]/50 text-[10px] tracking-[0.5em] font-mono uppercase">Specimen.{{ String(recentRecords.length > 0 ? recentRecords[0].id : '000').slice(-6) }}</p>
+        </div>
+
+        <!-- 核心情绪文本 -->
+        <div class="w-full text-center z-10 flex-1 flex items-center justify-center">
+          <p class="text-[#D6D2C4]/90 text-xl leading-[2.2] tracking-[0.15em] break-words px-4 text-justify">
+            {{ recentRecords.length > 0 ? recentRecords[0].text : '没有任何情绪。' }}
+          </p>
+        </div>
+
+        <!-- 底部地质参数 -->
+        <div class="w-full text-center z-10 flex flex-col items-center gap-4 pb-6">
+          <div class="w-[1px] h-12 bg-[#8A817C]/30"></div>
+          <div class="flex flex-col gap-1">
+            <p class="text-[#8A817C]/40 text-[9px] tracking-[0.3em] font-mono uppercase">DEPTH: {{ worldDepth }} M</p>
+            <p class="text-[#8A817C]/30 text-[8px] tracking-[0.2em] font-mono">{{ todayDate }}</p>
+          </div>
+          <p class="text-[#D6D2C4]/20 text-[9px] tracking-[0.4em] mt-4 font-light">这里没有围观</p>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
+
+<style>
+/* 全局移动端排版与渲染优化 */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* 禁止移动端长按选中文本引发的诡异高亮 */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 赋予中文字体极其优雅的宋体/明朝体后备方案，解决部分手机强行显示粗糙黑体的问题 */
+.font-serif {
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "SimSun", "Times New Roman", serif !important;
+}
+
+.font-mono {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace !important;
+}
+</style>
 
 <style scoped>
 /* 仪式感翻转：冷暖背景切换 */
