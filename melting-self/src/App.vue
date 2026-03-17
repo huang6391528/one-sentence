@@ -6,7 +6,7 @@ import { ref, computed, onMounted } from 'vue';
 // ==========================================
 const placeholders = [
   "这里没有围观...",
-  "写下它，然后压入地层...",
+  "写下它，然后压入岩层...",
   "只有时间在听...",
 ];
 const introTexts = [
@@ -31,7 +31,7 @@ const specimens = [
   {
     id: '#042',
     type: '镜像',
-    text: '那个曾经热烈过的“旧我”，成了审判此刻最严苛的法官。我们在隔着时间，审视一件陌生而完美的标本。',
+    text: '那个曾经热烈过的“旧我”，成了审判此刻最严苛的法官。我们在隔着时间，审视一具陌生而完美的躯壳。',
   },
   { id: '#103', type: '凋零', text: '所谓怀旧，不是对青春的眷恋，而是对自我丧失的无力凭吊。我们哭泣，是惊觉那个自由意志的自己，早已被囚禁在过去的剪影里。' }
 ];
@@ -121,7 +121,7 @@ const openRecords = () => {
       expanded: false
     }));
   } else {
-    strataRecords.value = [{ id: 0, title: '空', text: '地层深处空无一物。', expanded: false }];
+    strataRecords.value = [{ id: 0, title: '空', text: '岩层深处空无一物。', expanded: false }];
   }
 
   // 开始月末仪式动画
@@ -294,14 +294,14 @@ const handleSeal = async () => {
         <!-- 顶部标题 -->
         <header class="w-full text-center pt-10 sm:pt-[8vh] flex-shrink-0 z-10 transition-opacity duration-[3000ms]" :class="{ 'opacity-0 pointer-events-none': isSealed }">
           <h1 class="text-sm sm:text-lg tracking-[0.3em] sm:tracking-[0.6em] font-light opacity-60 text-[#D6D2C4] px-6 leading-[2] sm:leading-relaxed break-words">
-            这里没有围观，<br class="sm:hidden" />写下它，然后压入地层。
+            这里没有围观，<br class="sm:hidden" />写下它，然后压入岩层。
           </h1>
         </header>
 
         <!-- 主输入区 (加入沉降震颤动画) -->
         <main class="flex-1 w-full max-w-xl mx-auto px-6 sm:px-8 flex flex-col items-center justify-center relative z-10 my-10 sm:my-16 min-h-[250px]">
-          <div class="absolute top-[-30px] sm:top-[-40px] w-full text-center pointer-events-none transition-opacity duration-1000" :class="{ 'opacity-0': isSealed || inputText }">
-            <p class="text-[10px] sm:text-xs text-[#D6D2C4]/30 tracking-[0.2em] sm:tracking-[0.3em] font-light italic leading-[1.8]">
+          <div class="absolute top-[-45px] sm:top-[-50px] w-full text-center pointer-events-none transition-opacity duration-1000" :class="{ 'opacity-0': isSealed || inputText }">
+            <p class="text-sm sm:text-base text-[#D6D2C4]/40 tracking-[0.2em] sm:tracking-[0.3em] font-light italic leading-[1.8]">
               除了你，没有人会懂你此刻的感受。<br /><span class="opacity-50 mt-1 block">包括未来的你。</span>
             </p>
           </div>
@@ -372,7 +372,7 @@ const handleSeal = async () => {
               @click="openRecords"
               class="text-[10px] sm:text-xs tracking-[0.3em] text-[#8A817C]/50 hover:text-[#D6D2C4]/80 transition-colors pb-1"
             >
-              [ 地层记录 ]
+              [ 岩层剖面 ]
             </button>
             <button
               v-if="hasPostedToday"
@@ -391,7 +391,7 @@ const handleSeal = async () => {
     <transition name="fade-slow">
       <div v-if="isSilenced" class="absolute inset-0 z-[70] bg-[#0A0A09] flex items-center justify-center pointer-events-none">
         <p class="text-[#8A817C]/50 text-xs sm:text-sm tracking-[0.8em] font-light mix-blend-screen pl-3">
-          已沉入地层。
+          已沉入岩层。
         </p>
       </div>
     </transition>
@@ -400,7 +400,7 @@ const handleSeal = async () => {
     <transition name="fade">
       <div v-if="showLockMessage" class="absolute inset-0 z-[80] bg-[#0A0A09]/95 backdrop-blur-md flex items-center justify-center pointer-events-none">
         <p class="text-[#D6D2C4]/40 text-xs tracking-[0.6em] font-light text-center leading-[3]">
-          地层需要时间。<br>月末会打开。
+          岩层需要时间。<br>月末会裂开。
         </p>
       </div>
     </transition>
@@ -445,10 +445,10 @@ const handleSeal = async () => {
           <p>某个凌晨三点，风穿过空荡的街道。<br/>痛苦无声，却真实得无处安放。</p>
           <p>人生犹如一辆夜行列车，<br/>我们途经荒原，四周寥落，万物萧索。</p>
           <p>是绝对的孤独？还是灵魂的战栗？<br/>在这片言语无法抵达的深渊，<br/>悲喜交叠，最终化为巨大的空。</p>
-          <p>于是有了这片地层。<br/>不是为了遗忘，<br/>而是让所有无法言说的重量，<br/>在沉默中，被时间压成化石。</p>
+          <p>于是有了这片岩层。<br/>不是为了遗忘，<br/>而是让所有无法言说的重量，<br/>在沉默中，被时间压成化石。</p>
           <p class="text-right mt-4 opacity-70 font-mono text-xs tracking-widest">——一个还在读书的人</p>
           <p class="text-center mt-8 opacity-40 text-[10px] tracking-[0.4em]">
-            这里没有围观。写下它，然后压入地层。
+            这里没有围观。写下它，然后压入岩层。
           </p>
           <a
             href="mailto:your-mailbox@example.com"
@@ -476,7 +476,7 @@ const handleSeal = async () => {
       <!-- 仪式文字 -->
       <transition name="fade">
         <div v-if="crackingPhase === 4" class="absolute z-20 flex flex-col items-center gap-12">
-          <p class="text-[#D6D2C4]/70 text-sm sm:text-base tracking-[0.8em] font-light shadow-text">压力形成了地层。</p>
+          <p class="text-[#D6D2C4]/70 text-sm sm:text-base tracking-[0.8em] font-light shadow-text">压力形成了岩层。</p>
           <button @click="showRecords = true; crackingPhase = 0;" class="text-[10px] sm:text-xs tracking-[0.4em] text-[#8A817C] hover:text-[#D6D2C4] transition-all border border-[#8A817C]/20 hover:border-[#8A817C]/60 px-8 py-3 bg-[#0A0A09]/50 backdrop-blur-sm">
             [ 查看这一月 ]
           </button>
@@ -495,11 +495,11 @@ const handleSeal = async () => {
 
         <!-- 剖面图容器 -->
         <div class="w-full max-w-lg flex flex-col relative z-10">
-          <!-- 贯穿地层的纵向刻度线 -->
+          <!-- 贯穿岩层的纵向刻度线 -->
           <div class="absolute left-[40px] top-0 bottom-0 w-[1px] bg-[#8A817C]/10"></div>
           
           <div v-for="(record, index) in strataRecords" :key="record.id" class="w-full flex flex-col">
-            <!-- 地层横截面线 -->
+            <!-- 岩层横截面线 -->
             <button @click="toggleRecord(index)" class="group w-full py-5 flex items-center gap-6 text-left focus:outline-none relative">
               <div class="w-[80px] h-[1px] bg-[#8A817C]/20 group-hover:bg-[#D6D2C4]/60 transition-colors z-10 origin-left scale-x-75 group-hover:scale-x-100"></div>
               <span class="text-[#8A817C]/40 group-hover:text-[#D6D2C4]/70 text-[10px] sm:text-xs tracking-[0.3em] font-mono transition-colors">
