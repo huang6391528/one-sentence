@@ -6,16 +6,56 @@ export default {
   ],
   theme: {
     extend: {
-      colors: {
-        'glacier-bg': '#0A0F1C',       // 深冰背景
-        'glacier-text': '#E8EAED',     // 微暖白文字
-        'glacier-accent': '#A3D8FF',   // 冰裂强调色 (青蓝)
-      },
+      // 字体族
       fontFamily: {
-        // 如果系统有思源黑体优先用，没有则回退到原生无衬线
-        sans: ['"Noto Sans SC"', '"PingFang SC"', '"Microsoft YaHei"', 'sans-serif'], 
-        serif: ['"Noto Serif SC"', 'serif'],
-      }
+        sans: [
+          'Inter',
+          'system-ui',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"Segoe UI"',
+          'Roboto',
+          '"Helvetica Neue"',
+          'Arial',
+          'sans-serif',
+        ],
+        mono: [
+          '"SFMono-Regular"',
+          'Consolas',
+          '"Liberation Mono"',
+          'Menlo',
+          'Courier',
+          'monospace',
+        ],
+      },
+      // 颜色
+      colors: {
+        black: '#000000',
+        gray: {
+          DEFAULT: '#333333',
+          dark: '#333333',
+          dim: '#444444',
+          muted: '#555555',
+          light: '#8A817C',
+        },
+      },
+      // 间距
+      spacing: {
+        'btn-gap': '20px',
+      },
+      // 最大宽度
+      maxWidth: {
+        'input': '600px',
+      },
+      // 过渡时长
+      transitionDuration: {
+        'slow': '3000ms',
+        'slow-2': '2000ms',
+      },
+      // 动画
+      animation: {
+        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+      },
     },
   },
   plugins: [],

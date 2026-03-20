@@ -1,103 +1,95 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+/**
+ * ============================================
+ * One Sentence - 情感艺术网页装置 v2.0
+ * ============================================
+ * 
+ * 设计重构：
+ * - 原研哉式极简主义：纯黑背景，无限留白
+ * - Awwwards 级视觉张力：残酷的字体层级
+ * - 坐标轴式布局：四角锚定，绝对居中
+ */
 
-// ==========================================
-// 1. 雕刻后的文本与数据
-// ==========================================
-const placeholders = [
-  "这里没有围观...",
-  "写下它，然后压入岩层...",
-  "只有时间在听...",
+import { ref, computed, onMounted, watch } from 'vue';
+import { fetchFossilPoem } from './utils/deepseek.js';
+import { playTectonicShift } from './utils/audioEngine.js';
+import { saveSentenceToCloud, isSupabaseAvailable, supabase } from './utils/supabase.js';
+import { silentResonance } from './utils/llm.js';
+
+// ============================================
+// I. 全局常量
+// ============================================
+
+const MAX_CHARS = 140;
+
+const SPECIMENS = [
+  { id: '#009', type: '夜行', text: '凌晨三点的街道，没有任何人知道你存在过。城市像一台暂停的机器，只有路灯在运行。' },
+  { id: '#017', type: '异化', text: '我们以为自己在向上攀登，后来才发现，那只是把石头推上另一条转速更快的履带。' },
+  { id: '#024', type: '荣光', text: '曾经跨越山海的勋章，成了一枚枚钉死在标本盒里的蝴蝶。美得窒息，却毫无生机。' },
+  { id: '#042', type: '镜像', text: '那个曾经热烈过的"旧我"，成了审判此刻最严苛的法官。我们在隔着时间，审视一具陌生而完美的躯壳。' },
+  { id: '#103', type: '凋零', text: '所谓怀旧，不是对青春的眷恋，而是对自我丧失的无力凭吊。我们哭泣，是惊觉那个自由意志的自己，早已被囚禁在过去的剪影里。' },
 ];
-const introTexts = [
+
+const INTRO_TEXTS = [
   '18岁\n你相信努力会改变命运',
   '后来\n你拥有了很多身份',
   '有些话\n不能说给任何人',
   '把它埋在这里',
 ];
 
-const specimens = [
-  { id: '#009', type: '夜行', text: '凌晨三点的街道，没有任何人知道你存在过。城市像一台暂停的机器，只有路灯在运行。' },
-  {
-    id: '#017',
-    type: '异化',
-    text: '我们以为自己在向上攀登，后来才发现，那只是把石头推上另一条转速更快的履带。',
-  },
-  {
-    id: '#024',
-    type: '荣光',
-    text: '曾经跨越山海的勋章，成了一枚枚钉死在标本盒里的蝴蝶。美得窒息，却毫无生机。',
-  },
-  {
-    id: '#042',
-    type: '镜像',
-    text: '那个曾经热烈过的“旧我”，成了审判此刻最严苛的法官。我们在隔着时间，审视一具陌生而完美的躯壳。',
-  },
-  { id: '#103', type: '凋零', text: '所谓怀旧，不是对青春的眷恋，而是对自我丧失的无力凭吊。我们哭泣，是惊觉那个自由意志的自己，早已被囚禁在过去的剪影里。' }
+const PLACEHOLDERS = [
+  '这里没有围观...',
+  '写下它，然后压入岩层...',
+  '只有时间在听...',
 ];
+
+// ============================================
+// II. 状态
+// ============================================
 
 const hasSeenIntro = ref(true);
 const introStep = ref(0);
 const showSplash = ref(false);
+
 const showManifesto = ref(false);
 const showAbout = ref(false);
 
-const showRecords = ref(false); // 地质剖面图层
-const showLockMessage = ref(false); // 月末未到提示
-const crackingPhase = ref(0); // 月末破裂动画阶段: 0关, 1黑屏, 2裂纹, 3透光, 4文字
-const isSilenced = ref(false); // 封存后的3秒静默
-const isPageShaking = ref(false); // 页面轻微震动
-const depthJump = ref(false); // 深度数字跳动
-const strataRecords = ref([]); // 地层记录数据
-const recentRecords = ref([]); // 往日回音数据（时间的刻痕）
-const isGenerating = ref(false); // 生成标本的状态
+const showRecords = ref(false);
+const showLockMessage = ref(false);
+const crackingPhase = ref(0);
+const strataRecords = ref([]);
+const recentRecords = ref([]);
+
+const inputText = ref('');
+const isSealed = ref(false);
+const isSilenced = ref(false);
+const isPageShaking = ref(false);
+const isDeepShaking = ref(false);
+const depthJump = ref(false);
+const hasPostedToday = ref(false);
+
+const isLampLit = ref(false);
+const toggleLamp = () => { isLampLit.value = !isLampLit.value; };
+
+const worldDepth = ref(0);
+const todayDepth = ref(0);
 
 const activeSpecimen = ref(null);
 
-const basePlaceholder = ref(placeholders[0]);
-const inputText = ref('');
-const isSealed = ref(false);
-const maxChars = 140;
-const worldDepth = ref(0);
-const todayDepth = ref(0); // 模拟今日新增深度
+const isDrillingFossil = ref(false);
+const fossilPoem = ref('');
+const fossilRevealed = ref(false);
+const fossilError = ref('');
 
-const hasPostedToday = ref(false); // 今日是否已书写
+const isExhibitionMode = ref(false);
 
-const isLampLit = ref(false);
-const toggleLamp = () => {
-  isLampLit.value = !isLampLit.value;
-};
+const resonanceText = ref('');
+const resonanceVisible = ref(false);
+const isResonating = ref(false);
 
-const todayDate = computed(() => {
-  const d = new Date();
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
-});
-
-// 动态生成的占位符
-const currentPlaceholder = computed(() => {
-  if (hasPostedToday.value) return "今日的重量已落入地底。请等待下一个黑夜。";
-  return basePlaceholder.value;
-});
-
-// ==========================================
-// 2. 隐藏细节：纪元系统
-// ==========================================
-const currentEpoch = computed(() => {
-  if (worldDepth.value >= 10000) return '黑曜石纪元';
-  if (worldDepth.value >= 1000) return '沉积纪元';
-  if (worldDepth.value >= 100) return '第一层地壳已形成';
-  return '';
-});
-
-// 交互逻辑
-const nextIntroStep = () => {
-  if (introStep.value < introTexts.length - 1) {
-    introStep.value++;
-  } else {
-    localStorage.setItem('hasSeenMeltingIntro', 'true');
-    hasSeenIntro.value = true;
-  }
-};
+// ============================================
+// III. 计算属性
+// ============================================
 
 const isEndOfMonth = () => {
   const today = new Date();
@@ -105,39 +97,96 @@ const isEndOfMonth = () => {
   return tomorrow.getDate() === 1;
 };
 
+const canShowFossilButton = computed(() => {
+  return isExhibitionMode.value || isEndOfMonth();
+});
+
+const canInput = computed(() => {
+  return isExhibitionMode.value || !hasPostedToday.value;
+});
+
+const basePlaceholder = ref(PLACEHOLDERS[0]);
+const currentPlaceholder = computed(() => {
+  if (!canInput.value) return '今日的重量已落入地底。请等待下一个黑夜。';
+  return basePlaceholder.value;
+});
+
+const todayDate = computed(() => {
+  const d = new Date();
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+});
+
+const currentEpoch = computed(() => {
+  if (worldDepth.value >= 10000) return '黑曜石纪元';
+  if (worldDepth.value >= 1000) return '沉积纪元';
+  if (worldDepth.value >= 100) return '第一层地壳已形成';
+  return '';
+});
+
+const charColorClass = computed(() => {
+  const len = inputText.value.length;
+  if (len >= MAX_CHARS) return 'text-[#555]';
+  if (len > 100) return 'text-[#444]';
+  return 'text-[#333]';
+});
+
+const dynamicSinkStyle = computed(() => {
+  if (!isSealed.value) return {};
+  return {
+    transform: 'translateY(30px)',
+    opacity: 0,
+    transition: 'all 2.5s ease-in',
+  };
+});
+
+// ============================================
+// IV. 交互逻辑
+// ============================================
+
+const nextIntroStep = () => {
+  if (introStep.value < INTRO_TEXTS.length - 1) {
+    introStep.value++;
+  } else {
+    localStorage.setItem('hasSeenMeltingIntro', 'true');
+    hasSeenIntro.value = true;
+  }
+};
+
 const openRecords = () => {
-  if (!isEndOfMonth()) {
+  if (!isExhibitionMode.value && !isEndOfMonth()) {
     showLockMessage.value = true;
     setTimeout(() => { showLockMessage.value = false; }, 3000);
     return;
   }
-  
-  // 获取真实的本地历史数据
+
   const savedRecords = JSON.parse(localStorage.getItem('melting_strata_records') || '[]');
   if (savedRecords.length > 0) {
     strataRecords.value = savedRecords.map((r, i) => ({
       ...r,
       title: `第${savedRecords.length - i}层 · ${r.date}`,
-      expanded: false
+      expanded: false,
     }));
   } else {
     strataRecords.value = [{ id: 0, title: '空', text: '岩层深处空无一物。', expanded: false }];
   }
 
-  // 开始月末仪式动画
-  crackingPhase.value = 1; // 阶段1：黑屏
+  crackingPhase.value = 1;
   setTimeout(() => {
-    // 取消延迟，让视觉裂纹和物理音频在同一毫秒绝对同时触发
-    crackingPhase.value = 2; // 阶段2：裂开
-    
-    const crackSound = new Audio('/crack.mp3');
-    crackSound.volume = 0.8;
-    crackSound.play().catch(e => console.log('音频被拦截', e));
-    
-    setTimeout(() => { crackingPhase.value = 3; // 阶段3：透光 (裂纹持续1.5秒后)
-      setTimeout(() => { crackingPhase.value = 4; }, 1000); // 阶段4：文字与按钮
+    crackingPhase.value = 2;
+    playSound('/crack.mp3', 0.8);
+    setTimeout(() => {
+      crackingPhase.value = 3;
+      setTimeout(() => { crackingPhase.value = 4; }, 1000);
     }, 1500);
   }, 500);
+};
+
+const playSound = (src, volume = 0.6) => {
+  try {
+    const sound = new Audio(src);
+    sound.volume = volume;
+    sound.play().catch(() => {});
+  } catch {}
 };
 
 const toggleSpecimen = (id) => {
@@ -148,528 +197,1295 @@ const toggleRecord = (index) => {
   strataRecords.value[index].expanded = !strataRecords.value[index].expanded;
 };
 
-const dynamicSinkStyle = computed(() => {
-  if (!isSealed.value) return {};
-  return {
-    transform: 'translateY(40px)', // 向下沉40px
-    opacity: 0,
-    transition: 'all 2.5s ease-in', // 慢慢沉下去
+const triggerFossilDivination = async () => {
+  isDrillingFossil.value = true;
+  fossilError.value = '';
+
+  try {
+    const savedRecords = JSON.parse(localStorage.getItem('melting_strata_records') || '[]');
+    const texts = savedRecords.map(r => r.text).join('\n——\n');
+
+    if (!texts.trim()) {
+      fossilError.value = '岩层深处空无一物。';
+      isDrillingFossil.value = false;
+      return;
+    }
+
+    const poem = await fetchFossilPoem(texts);
+    fossilPoem.value = poem;
+    fossilRevealed.value = true;
+  } catch (err) {
+    fossilError.value = err.message || '钻探失败，地层拒绝回应。';
+    console.error('[化石占卜]', err);
+  } finally {
+    isDrillingFossil.value = false;
+  }
+};
+
+const handleSeal = async () => {
+  if (!inputText.value.trim() || !canInput.value) return;
+
+  isSealed.value = true;
+
+  playSound('/stone.mp3', 0.6);
+  setTimeout(() => playTectonicShift(), 200);
+
+  if (navigator.vibrate) {
+    navigator.vibrate([50, 30, 50]);
+  }
+
+  isPageShaking.value = true;
+  setTimeout(() => { isPageShaking.value = false; }, 200);
+
+  const newRecord = {
+    id: Date.now(),
+    date: todayDate.value,
+    text: inputText.value.trim(),
   };
-});
 
-const charColorClass = computed(() => {
-  const len = inputText.value.length;
-  if (len >= maxChars) return 'text-[#8A5A5A]/90';
-  if (len > 100) return 'text-[#8A817C]/90';
-  return 'text-[#D6D2C4]/40';
-});
+  const savedRecords = JSON.parse(localStorage.getItem('melting_strata_records') || '[]');
+  savedRecords.unshift(newRecord);
+  if (savedRecords.length > 30) savedRecords.pop();
+  localStorage.setItem('melting_strata_records', JSON.stringify(savedRecords));
+  recentRecords.value = savedRecords.slice(0, 3);
 
-onMounted(async () => {
+  saveSentenceToCloud(inputText.value.trim()).then(success => {
+    if (success) console.log('[封存] 云端归档成功');
+  });
+
+  if (isExhibitionMode.value) {
+    triggerSilentResonance();
+  }
+
+  setTimeout(() => {
+    worldDepth.value += 1;
+    todayDepth.value += 1;
+    depthJump.value = true;
+    isDeepShaking.value = true;
+    setTimeout(() => {
+      depthJump.value = false;
+      isDeepShaking.value = false;
+    }, 300);
+  }, 2000);
+
+  setTimeout(() => { isSilenced.value = true; }, 2500);
+
+  setTimeout(() => {
+    isSilenced.value = false;
+    isSealed.value = false;
+    inputText.value = '';
+    if (!isExhibitionMode.value) {
+      hasPostedToday.value = true;
+      localStorage.setItem('melting_last_post_date', new Date().toDateString());
+    }
+  }, 6000);
+};
+
+const triggerSilentResonance = async () => {
+  if (!isSupabaseAvailable() || !supabase) {
+    console.warn('[无声共鸣] Supabase 不可用');
+    return;
+  }
+
+  isResonating.value = true;
+
+  try {
+    const resonance = await silentResonance(inputText.value.trim(), supabase);
+    if (resonance) {
+      resonanceText.value = resonance;
+      resonanceVisible.value = true;
+      setTimeout(() => {
+        resonanceVisible.value = false;
+        setTimeout(() => { resonanceText.value = ''; }, 3000);
+      }, 5000);
+    }
+  } catch (error) {
+    console.error('[无声共鸣]', error.message || error);
+  } finally {
+    isResonating.value = false;
+  }
+};
+
+// ============================================
+// V. 生命周期
+// ============================================
+
+onMounted(() => {
+  if (window.location.search.includes('mode=exhibition')) {
+    isExhibitionMode.value = true;
+    console.log('[God Switch] 展览模式已激活');
+  }
+
   const seen = localStorage.getItem('hasSeenMeltingIntro');
   if (!seen) {
     hasSeenIntro.value = false;
   } else {
     showSplash.value = true;
-    setTimeout(() => {
-      showSplash.value = false;
-    }, 2500);
+    setTimeout(() => { showSplash.value = false; }, 2500);
   }
 
-  basePlaceholder.value = placeholders[Math.floor(Math.random() * placeholders.length)];
+  basePlaceholder.value = PLACEHOLDERS[Math.floor(Math.random() * PLACEHOLDERS.length)];
 
-  // 检查本地存储，今天是否已经发过
-  const lastPostDate = localStorage.getItem('melting_last_post_date');
-  if (lastPostDate === new Date().toDateString()) {
-    hasPostedToday.value = true;
+  if (!isExhibitionMode.value) {
+    const lastPostDate = localStorage.getItem('melting_last_post_date');
+    if (lastPostDate === new Date().toDateString()) {
+      hasPostedToday.value = true;
+    }
   }
-  
-  // 加载最近的记录作为“时间的刻痕”背景
+
   const savedRecords = JSON.parse(localStorage.getItem('melting_strata_records') || '[]');
   recentRecords.value = savedRecords.slice(0, 3);
 
-  // 第一次定稿版：采用“初始常量 + 本地递增”的伪动态机制
-  // 赋予产品初始的厚重感。等后续接入真实数据库后，再替换为真实请求。
-  worldDepth.value = 8432; 
-  todayDepth.value = 124; 
+  worldDepth.value = 8432;
+  todayDepth.value = 124;
+
+  console.log('[One Sentence] 初始化完成', {
+    mode: isExhibitionMode.value ? 'exhibition' : 'normal',
+    supabase: isSupabaseAvailable() ? 'connected' : 'unavailable',
+  });
 });
 
-const handleSeal = async () => {
-  if (!inputText.value.trim()) return;
-
-  // 替换为更克制的石子声
-  const stoneSound = new Audio('/stone.mp3');
-  stoneSound.volume = 0.6;
-  stoneSound.play().catch(e => console.log('音频被拦截', e));
-
-  isSealed.value = true;
-  
-  // 页面轻微震动 (持续0.2s)
-  isPageShaking.value = true;
-  setTimeout(() => { isPageShaking.value = false; }, 200);
-
-  // 文本下沉动画结束后再增加深度
-  setTimeout(() => {
-    worldDepth.value += 1;
-    todayDepth.value += 1;
-    depthJump.value = true; // 触发深度数字跳动
-    setTimeout(() => { depthJump.value = false; }, 300);
-
-    // 将真实数据压入本地地层
-    const savedRecords = JSON.parse(localStorage.getItem('melting_strata_records') || '[]');
-    const newRecord = { id: Date.now(), date: todayDate.value, text: inputText.value };
-    savedRecords.unshift(newRecord);
-    if (savedRecords.length > 30) savedRecords.pop(); // 只保留最近30天
-    localStorage.setItem('melting_strata_records', JSON.stringify(savedRecords));
-    recentRecords.value = savedRecords.slice(0, 3); // 更新刻痕数据
-  }, 2000);
-  
-  // 触发屏幕静默
-  setTimeout(() => {
-    isSilenced.value = true;
-  }, 2500);
-
-  // 重置UI，等待下一次黎明
-  setTimeout(() => {
-    isSilenced.value = false;
-    isSealed.value = false;
-    inputText.value = '';
-    // 锁定今日输入
-    hasPostedToday.value = true;
-    localStorage.setItem('melting_last_post_date', new Date().toDateString());
-  }, 6000);
-};
+watch(isExhibitionMode, (newVal) => {
+  if (newVal) hasPostedToday.value = false;
+});
 </script>
 
 <template>
-  <!-- 根容器：根据 isSealed 状态切换“冷/暖”色调 -->
-  <div
-    class="min-h-[100dvh] min-h-screen bg-[#0A0A09] flex flex-col items-center justify-center font-serif overflow-hidden relative selection:bg-[#8A817C]/30 selection:text-[#D6D2C4] transition-all duration-[3000ms] ease-in-out page-scale-base"
-    :class="{ 'warm-bg': !isSealed && isLampLit, 'cold-bg': isSealed || !isLampLit, 'page-scale-shake': isPageShaking }"
-  >
-    <!-- 噪点质感层 (解决“太素”的问题) -->
-    <div class="absolute inset-0 pointer-events-none z-[1] opacity-[0.04] mix-blend-overlay" style="background-image: url('data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.8%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E');"></div>
+  <!-- ============================================
+       根容器
+       ============================================ -->
+  <div class="app-root" :class="{ 'shake-x': isPageShaking, 'shake-y': isDeepShaking }">
 
-    <!-- 划一根火柴：带有摇曳动画的火光 -->
-    <div v-if="isLampLit && !isSealed" class="absolute top-1/2 left-1/2 z-[2] pointer-events-none transition-opacity duration-1000 animate-flicker">
-      <div class="w-[70vw] h-[70vw] max-w-[600px] max-h-[600px] rounded-full opacity-80" style="background: radial-gradient(circle, rgba(230, 130, 40, 0.25) 0%, rgba(180, 60, 40, 0.12) 35%, transparent 70%); filter: blur(50px);"></div>
-    </div>
+    <!-- 噪点纹理 -->
+    <div class="noise-layer" aria-hidden="true"></div>
 
-    <!-- 介绍引导 -->
-    <div v-if="!hasSeenIntro" class="z-50 w-full max-w-2xl px-8 flex flex-col items-center justify-center min-h-screen cursor-pointer" @click="nextIntroStep">
+    <!-- 油灯光效 -->
+    <div v-if="isLampLit && !isSealed" class="lamp-glow" aria-hidden="true"></div>
+
+    <!-- ============================================
+         引导页
+         ============================================ -->
+    <div v-if="!hasSeenIntro" class="intro-screen" @click="nextIntroStep">
       <transition name="fade" mode="out-in">
-        <p :key="introStep" class="text-[#D6D2C4]/70 text-lg leading-[2.5] tracking-[0.2em] text-center whitespace-pre-line">
-          {{ introTexts[introStep] }}
-        </p>
+        <p :key="introStep" class="intro-text">{{ INTRO_TEXTS[introStep] }}</p>
       </transition>
-      <p class="absolute bottom-16 text-[#D6D2C4]/20 text-[10px] tracking-[0.4em] animate-pulse">点击屏幕继续</p>
+      <p class="intro-hint">点击继续</p>
     </div>
 
-    <!-- 闪屏 -->
+    <!-- ============================================
+         闪屏
+         ============================================ -->
     <transition name="fade">
-      <div v-if="hasSeenIntro && showSplash" class="absolute inset-0 z-40 flex items-center justify-center bg-[#0A0A09]">
-        <p class="text-[#D6D2C4]/40 text-sm tracking-[0.5em] font-light animate-pulse">你今天，存在过吗？</p>
+      <div v-if="hasSeenIntro && showSplash" class="splash-screen">
+        <p class="splash-text">你今天，存在过吗？</p>
       </div>
     </transition>
 
-    <!-- 主界面 -->
-    <template v-if="hasSeenIntro && !showSplash">
-      <!-- 采用全屏滚动容器，彻底解决手机端软键盘弹出和绝对定位导致的重叠挤盖问题 -->
-      <div class="absolute inset-0 flex flex-col overflow-y-auto overflow-x-hidden custom-scrollbar">
-        
-        <!-- 顶栏：数据仪表盘 (回归文档流，避免遮挡标题) -->
-        <div class="w-full px-6 pt-8 sm:px-8 sm:pt-8 flex-shrink-0 z-20 transition-opacity duration-[3000ms]" :class="{ 'opacity-20': isSealed }">
-          <div class="flex flex-row sm:flex-col justify-between sm:justify-start items-start">
-            <div class="mb-0 sm:mb-5">
-              <p class="text-[#8A817C]/40 text-[10px] tracking-[0.4em] font-mono mb-1 sm:mb-1.5 uppercase">Total Depth</p>
-              <p class="text-[#D6D2C4]/70 text-xs sm:text-base tracking-widest font-mono inline-block transition-transform duration-200" :class="{'number-jump': depthJump}">深度: {{ worldDepth.toLocaleString() }} 米</p>
-              <p v-if="currentEpoch" class="text-[#8A817C]/50 text-[10px] sm:text-[11px] tracking-widest mt-1 sm:mt-1.5 animate-pulse">{{ currentEpoch }}</p>
-            </div>
-            <div class="text-right sm:text-left">
-              <p class="text-[#8A817C]/30 text-[10px] tracking-[0.4em] font-mono mb-1 sm:mb-1.5 uppercase">Today's Sink</p>
-              <p class="text-[#D6D2C4]/40 text-xs sm:text-sm tracking-widest font-mono">新增: {{ todayDepth.toLocaleString() }} 米</p>
-            </div>
-          </div>
-        </div>
+    <!-- ============================================
+         主界面
+         ============================================ -->
+    <div v-if="hasSeenIntro && !showSplash" class="main-viewport">
 
-        <!-- 顶部标题 -->
-        <header class="w-full text-center pt-10 sm:pt-[8vh] flex-shrink-0 z-10 transition-opacity duration-[3000ms]" :class="{ 'opacity-0 pointer-events-none': isSealed }">
-          <h1 class="text-sm sm:text-lg tracking-[0.3em] sm:tracking-[0.6em] font-light opacity-60 text-[#D6D2C4] px-6 leading-[2] sm:leading-relaxed break-words">
-            这里没有围观，<br class="sm:hidden" />写下它，然后压入岩层。
-          </h1>
-        </header>
-
-        <!-- 主输入区 (加入沉降震颤动画) -->
-        <main class="flex-1 w-full max-w-xl mx-auto px-6 sm:px-8 flex flex-col items-center justify-center relative z-10 my-10 sm:my-16 min-h-[250px]">
-          <div class="absolute top-[-45px] sm:top-[-50px] w-full text-center pointer-events-none transition-opacity duration-1000" :class="{ 'opacity-0': isSealed || inputText }">
-            <p class="text-sm sm:text-base text-[#D6D2C4]/40 tracking-[0.2em] sm:tracking-[0.3em] font-light italic leading-[1.8]">
-              除了你，没有人会懂你此刻的感受。<br /><span class="opacity-50 mt-1 block">包括未来的你。</span>
-            </p>
-          </div>
-
-          <!-- 往日回音 (时间的刻痕) - 沉在输入框下方 -->
-          <div class="absolute inset-x-0 top-[60%] pointer-events-none flex flex-col items-center justify-start -z-10 transition-opacity duration-1000" :class="{ 'opacity-0': isSealed || inputText.length > 0 }">
-            <div v-for="(record, idx) in recentRecords" :key="'echo-'+idx"
-                 class="max-w-xl w-full text-center px-8 absolute"
-                 :style="{
-                   opacity: 0.08 - (idx * 0.025),
-                   filter: `blur(${1.5 + idx * 2}px)`,
-                   transform: `translateY(${40 + idx * 35}px) scale(${0.95 - idx * 0.05})`,
-                   zIndex: -idx
-                 }">
-              <p class="text-[#D6D2C4] text-base sm:text-lg leading-[1.8] tracking-[0.1em] line-clamp-1 select-none">{{ record.text }}</p>
-            </div>
-          </div>
-
-          <!-- 雕刻感输入框容器 -->
-          <div class="w-full flex flex-col items-center" :class="{ 'pointer-events-none': isSealed }" :style="dynamicSinkStyle">
-            <div class="w-full relative group p-5 rounded-sm" style="box-shadow: inset 0 1px 6px rgba(0,0,0,0.5);">
-              <textarea
-                v-model="inputText"
-                :maxlength="maxChars"
-                :placeholder="currentPlaceholder"
-                :disabled="isSealed || hasPostedToday"
-                class="w-full h-36 bg-transparent text-[#D6D2C4]/90 text-lg sm:text-xl focus:outline-none resize-none transition-colors peer leading-[1.8] tracking-[0.1em] disabled:opacity-40 disabled:cursor-not-allowed"
-                style="caret-color: rgba(138, 129, 124, 0.6)"
-              ></textarea>
-              <div class="absolute bottom-5 left-5 w-[calc(100%-2.5rem)] h-[1px] bg-[#8A817C]/20 transition-all duration-700 peer-focus:bg-[#8A817C]/60" :class="{'opacity-20': hasPostedToday}"></div>
-            </div>
-
-            <div class="w-full flex justify-between items-end mt-6">
-              <div class="flex flex-col gap-2">
-                <span class="text-xs font-mono transition-colors duration-300 tracking-widest" :class="charColorClass">
-                  重量: {{ inputText.length }} / {{ maxChars }}
-                </span>
-              </div>
-
-              <button
-                @click="handleSeal"
-                :disabled="!inputText.trim() || hasPostedToday"
-                class="group relative w-28 h-10 border border-[#8A817C]/50 bg-transparent text-sm tracking-[0.4em] text-[#D6D2C4]/70 overflow-hidden transition-all duration-500 disabled:opacity-10 disabled:border-[#8A817C]/20 hover:border-[#D6D2C4]/80"
-              >
-                <span class="relative z-20 group-hover:opacity-0 transition-opacity duration-300">埋下</span>
-                <span class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-500 text-[#0A0A09] font-medium z-20">
-                  封存
-                </span>
-                <div class="absolute inset-0 bg-[#D6D2C4] scale-y-0 group-hover:scale-y-100 transition-transform duration-500 ease-in-out origin-bottom z-10"></div>
-              </button>
-            </div>
-          </div>
-        </main>
-
-        <!-- 底部导航与状态 -->
-        <footer class="w-full text-center z-10 flex flex-col items-center gap-4 transition-opacity duration-[2000ms] pb-10 sm:pb-12 flex-shrink-0 mt-auto" :class="{'opacity-0 pointer-events-none': isSealed}">
-          <div class="flex flex-wrap justify-center gap-x-6 gap-y-4 px-4 w-full">
-            <button @click="showManifesto = true" class="text-[10px] sm:text-xs tracking-[0.3em] text-[#8A817C]/50 hover:text-[#D6D2C4]/80 transition-colors pb-1">
-              [ 标本盒 ]
-            </button>
-            <button @click="showAbout = true" class="text-[10px] sm:text-xs tracking-[0.3em] text-[#8A817C]/40 hover:text-[#D6D2C4]/70 transition-colors pb-1">
-              [ 溯源 ]
-            </button>
-            <button @click="toggleLamp" class="text-[10px] sm:text-xs tracking-[0.3em] text-[#8A817C]/40 hover:text-[#D6D2C4]/70 transition-colors pb-1">
-              [ {{ isLampLit ? '熄灭火柴' : '划一根火柴' }} ]
-            </button>
-            <button
-              @click="openRecords"
-              class="text-[10px] sm:text-xs tracking-[0.3em] text-[#8A817C]/50 hover:text-[#D6D2C4]/80 transition-colors pb-1"
-            >
-              [ 岩层剖面 ]
-            </button>
-            <button
-              v-if="hasPostedToday"
-              @click="generateSpecimen"
-              class="relative text-[10px] sm:text-xs tracking-[0.3em] text-[#8A817C]/50 hover:text-[#D6D2C4]/80 transition-colors pb-1"
-            >
-              [ 提取化石 ]
-              <span v-if="isGenerating" class="absolute -top-6 left-1/2 -translate-x-1/2 text-[9px] text-[#D6D2C4]/50 whitespace-nowrap">提取中...</span>
-            </button>
-          </div>
-        </footer>
-      </div>
-    </template>
-
-    <!-- 沉降后的3秒绝对静默屏 -->
-    <transition name="fade-slow">
-      <div v-if="isSilenced" class="absolute inset-0 z-[70] bg-[#0A0A09] flex items-center justify-center pointer-events-none">
-        <p class="text-[#8A817C]/50 text-xs sm:text-sm tracking-[0.8em] font-light mix-blend-screen pl-3">
-          已沉入岩层。
-        </p>
-      </div>
-    </transition>
-
-    <!-- 未到月末的克制提示 -->
-    <transition name="fade">
-      <div v-if="showLockMessage" class="absolute inset-0 z-[80] bg-[#0A0A09]/95 backdrop-blur-md flex items-center justify-center pointer-events-none">
-        <p class="text-[#D6D2C4]/40 text-xs tracking-[0.6em] font-light text-center leading-[3]">
-          岩层需要时间。<br>月末会裂开。
-        </p>
-      </div>
-    </transition>
-
-    <!-- 标本盒：抽屉式动画 -->
-    <transition name="drawer">
-      <div
-        v-if="showManifesto"
-        class="absolute inset-x-0 bottom-0 z-50 bg-[#0f0e0d]/90 backdrop-blur-md overflow-y-auto custom-scrollbar flex flex-col items-center pt-24 pb-12 px-6 sm:px-12 rounded-t-lg border-t border-t-[#8A817C]/10"
-        style="max-height: 80vh;"
-      >
-        <button @click="showManifesto = false" class="absolute top-6 right-8 text-[#D6D2C4]/30 hover:text-[#D6D2C4] text-3xl font-light">×</button>
-        <div class="max-w-2xl w-full flex flex-col gap-8">
-          <div class="text-center mb-12">
-            <h2 class="text-lg md:text-xl tracking-[0.6em] font-light text-[#D6D2C4] opacity-80 mb-4">情绪标本馆</h2>
-            <p class="text-[#8A817C]/50 text-xs tracking-[0.2em]">只保存重量。</p>
-          </div>
-          <div class="flex flex-col w-full">
-            <div v-for="item in specimens" :key="item.id" class="border-b border-[#8A817C]/10">
-              <button @click="toggleSpecimen(item.id)" class="w-full py-6 flex justify-between items-center text-[#D6D2C4]/50 hover:text-[#D6D2C4] transition-colors focus:outline-none">
-                <span class="font-mono text-sm tracking-widest">标本 {{ item.id }}</span>
-                <span class="text-[10px] tracking-[0.3em] opacity-40 uppercase">{{ item.type }}</span>
-              </button>
-              <div class="overflow-hidden transition-all duration-500 ease-in-out" :class="activeSpecimen === item.id ? 'max-h-40 opacity-100 pb-8' : 'max-h-0 opacity-0 pb-0'">
-                <p class="text-[#D6D2C4]/70 text-sm leading-[2.2] tracking-wide text-justify pl-4 border-l border-[#8A817C]/20">{{ item.text }}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </transition>
-
-    <!-- 溯源：羊皮纸质感 -->
-    <transition name="fade">
-      <div v-if="showAbout" class="absolute inset-0 z-50 bg-[#0A0A09]/80 backdrop-blur-sm flex items-center justify-center" @click="showAbout = false">
-        <button @click="showAbout = false" class="absolute top-8 right-8 text-[#D6D2C4]/30 hover:text-[#D6D2C4] text-3xl font-light">×</button>
-        <div
-          @click.stop
-          class="max-w-lg w-full max-h-[85vh] overflow-y-auto text-[#d1c8b3] font-serif leading-[2] sm:leading-[2.6] tracking-widest text-xs sm:text-sm flex flex-col gap-4 sm:gap-6 text-center p-8 sm:p-14 bg-transparent relative custom-scrollbar mx-4"
-          id="parchment"
-        >
-          <p>某个凌晨三点，风穿过空荡的街道。<br/>痛苦无声，却真实得无处安放。</p>
-          <p>人生犹如一辆夜行列车，<br/>我们途经荒原，四周寥落，万物萧索。</p>
-          <p>是绝对的孤独？还是灵魂的战栗？<br/>在这片言语无法抵达的深渊，<br/>悲喜交叠，最终化为巨大的空。</p>
-          <p>于是有了这片岩层。<br/>不是为了遗忘，<br/>而是让所有无法言说的重量，<br/>在沉默中，被时间压成化石。</p>
-          <p class="text-right mt-4 opacity-70 font-mono text-xs tracking-widest">——一个还在读书的人</p>
-          <p class="text-center mt-8 opacity-40 text-[10px] tracking-[0.4em]">
-            这里没有围观。写下它，然后压入岩层。
+      <!-- ============================================
+           顶栏：坐标轴式锚定
+           ============================================ -->
+      <header class="top-bar" :class="{ 'faded': isSealed }">
+        <!-- 左上：总深度 -->
+        <div class="corner-marker corner-tl">
+          <p class="meta-label">Total Depth</p>
+          <p class="meta-value" :class="{ 'jump': depthJump }">
+            {{ worldDepth.toLocaleString() }}
+            <span class="meta-unit">m</span>
           </p>
-          <a
-            href="mailto:your-mailbox@example.com"
-            class="text-[10px] text-[#8A817C]/18 hover:text-[#8A817C]/45 transition-colors tracking-[0.28em] mt-2"
-          >
-            [ 信箱 ]
-          </a>
+          <p v-if="currentEpoch" class="meta-epoch">{{ currentEpoch }}</p>
+        </div>
+
+        <!-- 右上：今日新增 -->
+        <div class="corner-marker corner-tr">
+          <p class="meta-label">Today's Sink</p>
+          <p class="meta-value-dim">+{{ todayDepth.toLocaleString() }}</p>
+        </div>
+      </header>
+
+      <!-- ============================================
+           中央输入区：视觉统治力
+           ============================================ -->
+      <main class="central-input" :class="{ 'faded': isSealed }">
+        <!-- 核心标题 -->
+        <h1 class="core-title">
+          这里没有围观<br />
+          写下它，然后压入岩层
+        </h1>
+
+        <!-- 输入框容器 -->
+        <div class="input-zone" :style="dynamicSinkStyle">
+          <textarea
+            v-model="inputText"
+            :maxlength="MAX_CHARS"
+            :placeholder="currentPlaceholder"
+            :disabled="isSealed || !canInput"
+            class="core-textarea"
+          ></textarea>
+
+          <!-- 控制栏 -->
+          <div class="input-controls">
+            <span class="char-counter" :class="charColorClass">
+              {{ inputText.length }} / {{ MAX_CHARS }}
+            </span>
+            <button
+              @click="handleSeal"
+              :disabled="!inputText.trim() || !canInput"
+              class="seal-btn"
+            >埋下</button>
+          </div>
+        </div>
+
+        <!-- 往日回音（极淡背景） -->
+        <div class="echo-ghost">
+          <p v-for="(r, i) in recentRecords" :key="i" class="echo-line">{{ r.text }}</p>
+        </div>
+      </main>
+
+      <!-- ============================================
+           底栏：电影字幕式菜单
+           ============================================ -->
+      <footer class="bottom-bar" :class="{ 'faded': isSealed }">
+        <button @click="showManifesto = true" class="menu-item">[ 标本盒 ]</button>
+        <button @click="showAbout = true" class="menu-item">[ 溯源 ]</button>
+        <button @click="toggleLamp" class="menu-item">
+          [ {{ isLampLit ? '熄灭' : '划火柴' }} ]
+        </button>
+        <button @click="openRecords" class="menu-item">[ 岩层 ]</button>
+        <button
+          v-if="canShowFossilButton"
+          @click="triggerFossilDivination"
+          :disabled="isDrillingFossil"
+          class="menu-item menu-item--ghost"
+        >
+          {{ isDrillingFossil ? '钻探中...' : '化石占卜' }}
+        </button>
+      </footer>
+    </div>
+
+    <!-- ============================================
+         静默屏
+         ============================================ -->
+    <transition name="fade-slow">
+      <div v-if="isSilenced" class="silence-screen">
+        <p class="silence-text">已沉入岩层</p>
+      </div>
+    </transition>
+
+    <!-- ============================================
+         月末锁定提示
+         ============================================ -->
+    <transition name="fade">
+      <div v-if="showLockMessage" class="lock-screen">
+        <p class="lock-text">岩层需要时间<br />月末会裂开</p>
+      </div>
+    </transition>
+
+    <!-- ============================================
+         标本盒
+         ============================================ -->
+    <transition name="slide-up">
+      <div v-if="showManifesto" class="panel">
+        <button @click="showManifesto = false" class="panel-close">×</button>
+        <div class="panel-inner">
+          <h2 class="panel-title">情绪标本馆</h2>
+          <p class="panel-sub">只保存重量</p>
+          <div class="specimen-list">
+            <div v-for="item in SPECIMENS" :key="item.id" class="specimen-unit">
+              <button @click="toggleSpecimen(item.id)" class="specimen-head">
+                <span class="specimen-id">标本 {{ item.id }}</span>
+                <span class="specimen-type">{{ item.type }}</span>
+              </button>
+              <div class="specimen-body" :class="{ 'open': activeSpecimen === item.id }">
+                <p class="specimen-text">{{ item.text }}</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </transition>
 
-    <!-- 月末破裂仪式与光 -->
-    <div v-if="crackingPhase > 0" class="absolute inset-0 z-[100] bg-[#050505] flex flex-col items-center justify-center overflow-hidden">
-      <div v-if="crackingPhase >= 2" class="relative w-full h-full flex items-center justify-center">
-        <!-- 透光特效 -->
-        <div v-if="crackingPhase >= 3" class="absolute w-[2px] h-[70%] bg-[#D6D2C4] blur-[12px] opacity-80 animate-pulse"></div>
-        <!-- 裂痕线条 -->
-        <svg class="absolute w-16 h-[120%] z-10 opacity-70" viewBox="0 0 100 1000" preserveAspectRatio="none">
-           <path class="crack-path" :class="{'crack-glow': crackingPhase >= 3}"
-              d="M50,0 L38,120 L62,280 L42,450 L58,600 L35,780 L65,880 L45,1000"
-              fill="none" stroke="#2A2A2A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            />
+    <!-- ============================================
+         溯源
+         ============================================ -->
+    <transition name="fade">
+      <div v-if="showAbout" class="panel panel--overlay" @click="showAbout = false">
+        <div class="panel-inner" @click.stop>
+          <button @click="showAbout = false" class="panel-close">×</button>
+          <div class="about-text">
+            <p>某个凌晨三点，风穿过空荡的街道。<br />痛苦无声，却真实得无处安放。</p>
+            <p>人生犹如一辆夜行列车，<br />我们途经荒原，四周寥落，万物萧索。</p>
+            <p>是绝对的孤独？还是灵魂的战栗？<br />在这片言语无法抵达的深渊，<br />悲喜交叠，最终化为巨大的空。</p>
+            <p>于是有了这片岩层。<br />不是为了遗忘，<br />而是让所有无法言说的重量，<br />在沉默中，被时间压成化石。</p>
+            <p class="about-sig">——一个还在读书的人</p>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- ============================================
+         月末破裂仪式
+         ============================================ -->
+    <div v-if="crackingPhase > 0" class="crack-screen">
+      <div v-if="crackingPhase >= 2" class="crack-visual">
+        <div v-if="crackingPhase >= 3" class="crack-beam"></div>
+        <svg class="crack-svg" viewBox="0 0 100 1000" preserveAspectRatio="none">
+          <path
+            class="crack-line"
+            :class="{ 'glow': crackingPhase >= 3 }"
+            d="M50,0 L38,120 L62,280 L42,450 L58,600 L35,780 L65,880 L45,1000"
+          />
         </svg>
       </div>
-      <!-- 仪式文字 -->
       <transition name="fade">
-        <div v-if="crackingPhase === 4" class="absolute z-20 flex flex-col items-center gap-12">
-          <p class="text-[#D6D2C4]/70 text-sm sm:text-base tracking-[0.8em] font-light shadow-text">压力形成了岩层。</p>
-          <button @click="showRecords = true; crackingPhase = 0;" class="text-[10px] sm:text-xs tracking-[0.4em] text-[#8A817C] hover:text-[#D6D2C4] transition-all border border-[#8A817C]/20 hover:border-[#8A817C]/60 px-8 py-3 bg-[#0A0A09]/50 backdrop-blur-sm">
-            [ 查看这一月 ]
-          </button>
+        <div v-if="crackingPhase === 4" class="crack-reveal">
+          <p class="crack-message">压力形成了岩层</p>
+          <button @click="showRecords = true; crackingPhase = 0;" class="crack-action">查看这一月</button>
         </div>
       </transition>
     </div>
 
-    <!-- 月末地质剖面图 (回看界面) -->
+    <!-- ============================================
+         地质剖面
+         ============================================ -->
     <transition name="fade">
-      <div v-if="showRecords" class="absolute inset-0 z-[90] bg-[#0A0A09] flex flex-col items-center pt-24 pb-12 px-6 overflow-y-auto custom-scrollbar">
-        <button @click="showRecords = false" class="absolute top-8 right-8 text-[#D6D2C4]/30 hover:text-[#D6D2C4] text-3xl font-light fixed z-50">×</button>
-        
-        <div class="text-center mb-16 relative z-10">
-          <h2 class="text-xs sm:text-sm tracking-[1em] font-light text-[#8A817C] opacity-50 uppercase ml-2">Stratum Section</h2>
-        </div>
-
-        <!-- 剖面图容器 -->
-        <div class="w-full max-w-lg flex flex-col relative z-10">
-          <!-- 贯穿岩层的纵向刻度线 -->
-          <div class="absolute left-[40px] top-0 bottom-0 w-[1px] bg-[#8A817C]/10"></div>
-          
-          <div v-for="(record, index) in strataRecords" :key="record.id" class="w-full flex flex-col">
-            <!-- 岩层横截面线 -->
-            <button @click="toggleRecord(index)" class="group w-full py-5 flex items-center gap-6 text-left focus:outline-none relative">
-              <div class="w-[80px] h-[1px] bg-[#8A817C]/20 group-hover:bg-[#D6D2C4]/60 transition-colors z-10 origin-left scale-x-75 group-hover:scale-x-100"></div>
-              <span class="text-[#8A817C]/40 group-hover:text-[#D6D2C4]/70 text-[10px] sm:text-xs tracking-[0.3em] font-mono transition-colors">
-                {{ record.title }}
-              </span>
-            </button>
-            <!-- 挖出的文字 -->
-            <div class="overflow-hidden transition-all duration-700 ease-in-out pl-[104px]" :class="record.expanded ? 'max-h-40 opacity-100 pb-8' : 'max-h-0 opacity-0 pb-0'">
-              <p class="text-[#D6D2C4]/50 text-xs sm:text-sm leading-loose tracking-widest">{{ record.text }}</p>
+      <div v-if="showRecords" class="panel panel--records">
+        <button @click="showRecords = false" class="panel-close">×</button>
+        <div class="panel-inner">
+          <h2 class="panel-title panel-title--small">Stratum Section</h2>
+          <div class="records-list">
+            <div class="records-axis"></div>
+            <div v-for="record in strataRecords" :key="record.id" class="record-unit">
+              <button @click="toggleRecord(strataRecords.indexOf(record))" class="record-head">
+                <div class="record-mark"></div>
+                <span class="record-title">{{ record.title }}</span>
+              </button>
+              <div class="record-body" :class="{ 'open': record.expanded }">
+                <p class="record-text">{{ record.text }}</p>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </transition>
 
-    <!-- 电子标本生成底板 (隐藏于视口外) -->
-    <div class="fixed left-[-9999px] top-0 pointer-events-none z-[-1]">
-      <div id="specimen-card-template" class="w-[375px] bg-[#0A0A09] flex flex-col items-center justify-between p-12 relative overflow-hidden" style="height: 667px; font-family: 'Songti SC', 'STSong', serif;">
-        <!-- 噪点背景层 -->
-        <div class="absolute inset-0 z-[1] opacity-[0.05] mix-blend-overlay" style="background-image: url('data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.8%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E');"></div>
-        
-        <div class="w-full text-center z-10 pt-6">
-          <p class="text-[#8A817C]/50 text-[10px] tracking-[0.5em] font-mono uppercase">Specimen.{{ String(recentRecords.length > 0 ? recentRecords[0].id : '000').slice(-6) }}</p>
-        </div>
-
-        <!-- 核心情绪文本 -->
-        <div class="w-full text-center z-10 flex-1 flex items-center justify-center">
-          <p class="text-[#D6D2C4]/90 text-xl leading-[2.2] tracking-[0.15em] break-words px-4 text-justify">
-            {{ recentRecords.length > 0 ? recentRecords[0].text : '没有任何情绪。' }}
-          </p>
-        </div>
-
-        <!-- 底部地质参数 -->
-        <div class="w-full text-center z-10 flex flex-col items-center gap-4 pb-6">
-          <div class="w-[1px] h-12 bg-[#8A817C]/30"></div>
-          <div class="flex flex-col gap-1">
-            <p class="text-[#8A817C]/40 text-[9px] tracking-[0.3em] font-mono uppercase">DEPTH: {{ worldDepth }} M</p>
-            <p class="text-[#8A817C]/30 text-[8px] tracking-[0.2em] font-mono">{{ todayDate }}</p>
-          </div>
-          <p class="text-[#D6D2C4]/20 text-[9px] tracking-[0.4em] mt-4 font-light">这里没有围观</p>
-        </div>
+    <!-- ============================================
+         化石占卜
+         ============================================ -->
+    <transition name="fossil-reveal">
+      <div v-if="fossilRevealed" class="fossil-screen">
+        <p class="fossil-text">{{ fossilPoem }}</p>
+        <button @click="fossilRevealed = false; fossilPoem = '';" class="fossil-close">关闭</button>
       </div>
-    </div>
+    </transition>
+
+    <transition name="fade">
+      <div v-if="fossilError" class="fossil-screen">
+        <p class="fossil-error">{{ fossilError }}</p>
+        <button @click="fossilError = '';" class="fossil-close">[ 返回 ]</button>
+      </div>
+    </transition>
+
+    <!-- ============================================
+         无声共鸣
+         ============================================ -->
+    <transition name="resonance">
+      <div v-if="resonanceVisible" class="resonance-screen">
+        <p class="resonance-text">{{ resonanceText }}</p>
+      </div>
+    </transition>
   </div>
 </template>
 
 <style>
-/* 全局移动端排版与渲染优化 */
+/* ============================================
+   全局重置
+   ============================================ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
+  background-color: #000;
+  color: #333;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-  /* 禁止移动端长按选中文本引发的诡异高亮 */
   -webkit-tap-highlight-color: transparent;
+  overflow: hidden;
 }
 
-/* 赋予中文字体极其优雅的宋体/明朝体后备方案，解决部分手机强行显示粗糙黑体的问题 */
-.font-serif {
-  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "SimSun", "Times New Roman", serif !important;
+/* 禁止选中 */
+* {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-.font-mono {
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace !important;
+/* 无阴影无圆角 */
+* {
+  box-shadow: none !important;
+  border-radius: 0 !important;
 }
 </style>
 
 <style scoped>
-/* 仪式感翻转：冷暖背景切换 */
-.warm-bg {
-  background: radial-gradient(ellipse at bottom, rgba(73, 53, 38, 0.28) 0%, rgba(10, 10, 9, 1) 65%);
-}
-.cold-bg {
-  background-color: #0A0A09;
-}
-
-/* 溯源：羊皮纸效果 */
-#parchment {
-  background-color: #f3eacb;
-  color: #4a3f35;
-  box-shadow: 0 0 120px rgba(0,0,0,0.6), inset 0 0 40px rgba(0,0,0,0.2);
-  border: 1px solid #e0d6b3;
-  filter: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"><filter id="a" x="0" y="0" width="100%" height="100%"><feTurbulence baseFrequency=".05" numOctaves="5" seed="3" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(#a)" opacity=".1"/></svg>#a');
+/* ============================================
+   根容器
+   ============================================ */
+.app-root {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  background-color: #000;
+  position: relative;
+  overflow: hidden;
 }
 
-/* 火光摇曳动画 */
+/* 震动动画 */
+.shake-x { animation: shake-x 0.2s ease-in-out; }
+@keyframes shake-x {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
+
+.shake-y { animation: shake-y 0.3s ease-in-out; }
+@keyframes shake-y {
+  0%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-4px); }
+  60% { transform: translateY(3px); }
+}
+
+/* ============================================
+   噪点纹理
+   ============================================ */
+.noise-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.03;
+  mix-blend-mode: overlay;
+  background-image: url('data:image/svg+xml,%3Csvg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="noise"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" stitchTiles="stitch"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23noise)"/%3E%3C/svg%3E');
+}
+
+/* ============================================
+   油灯光效
+   ============================================ */
+.lamp-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100vmin;
+  height: 100vmin;
+  max-width: 800px;
+  max-height: 800px;
+  background: radial-gradient(circle, rgba(200, 100, 30, 0.15) 0%, rgba(150, 50, 20, 0.08) 40%, transparent 70%);
+  filter: blur(60px);
+  animation: flicker 4s infinite alternate;
+  pointer-events: none;
+  z-index: 2;
+}
+
 @keyframes flicker {
-  0%, 100% { opacity: 0.85; transform: translate(-50%, -50%) scale(1); }
-  20% { opacity: 0.6; transform: translate(-50%, -50%) scale(0.98); }
-  40% { opacity: 0.9; transform: translate(-50%, -50%) scale(1.03); }
-  60% { opacity: 0.7; transform: translate(-50%, -50%) scale(1.01); }
-  80% { opacity: 0.5; transform: translate(-50%, -50%) scale(0.96); }
-}
-.animate-flicker {
-  animation: flicker 3s infinite alternate cubic-bezier(0.4, 0, 0.2, 1);
+  0%, 100% { opacity: 0.9; }
+  25% { opacity: 0.6; }
+  50% { opacity: 1; }
+  75% { opacity: 0.7; }
 }
 
-/* 页面极轻微震动 */
-.page-scale-base {
-  transition: transform 0.2s ease-in-out;
-}
-.page-scale-shake {
-  transform: scale(1.002);
-}
-
-/* 数字跳动 */
-.number-jump {
-  transform: translateY(-4px) scale(1.1);
-  color: #D6D2C4 !important;
-  text-shadow: 0 0 8px rgba(214, 210, 196, 0.4);
+/* ============================================
+   主视口
+   ============================================ */
+.main-viewport {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  padding: 40px;
 }
 
-/* 裂纹蔓延动画 */
-.crack-path {
-  stroke-dasharray: 2000;
-  stroke-dashoffset: 2000;
-  animation: draw-crack 1.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-}
-@keyframes draw-crack {
-  to { stroke-dashoffset: 0; }
-}
-.crack-glow {
-  stroke: #D6D2C4;
-  filter: drop-shadow(0 0 4px rgba(214,210,196,0.6));
-  transition: all 1s ease;
+/* ============================================
+   顶栏：坐标轴式锚定
+   ============================================ */
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  transition: opacity 3s ease-in-out;
 }
 
-.shadow-text {
-  text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+.top-bar.faded { opacity: 0.15; }
+
+.corner-marker {
+  display: flex;
+  flex-direction: column;
 }
 
-/* 慢速淡入淡出 (用于静默屏) */
-.fade-slow-enter-active,
-.fade-slow-leave-active {
+.corner-tl { align-items: flex-start; }
+.corner-tr { align-items: flex-end; }
+
+.meta-label {
+  font-size: 9px;
+  letter-spacing: 5px;
+  color: #444;
+  text-transform: uppercase;
+  font-family: "SF Mono", "Fira Code", monospace;
+  margin-bottom: 6px;
+}
+
+.meta-value {
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: #555;
+  font-family: "SF Mono", "Fira Code", monospace;
+  transition: transform 0.2s;
+}
+
+.meta-value.jump {
+  transform: translateY(-3px) scale(1.05);
+}
+
+.meta-unit {
+  font-size: 10px;
+  color: #444;
+  margin-left: 2px;
+}
+
+.meta-value-dim {
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: #444;
+  font-family: "SF Mono", "Fira Code", monospace;
+}
+
+.meta-epoch {
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: #333;
+  margin-top: 8px;
+  animation: breathe 4s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.6; }
+}
+
+/* ============================================
+   中央输入区
+   ============================================ */
+.central-input {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 48px;
+  position: relative;
+  transition: opacity 3s ease-in-out;
+}
+
+.central-input.faded { opacity: 0; }
+
+.core-title {
+  font-size: 16px;
+  letter-spacing: 4px;
+  color: #444;
+  text-align: center;
+  line-height: 2.2;
+  font-weight: 300;
+}
+
+@media (min-width: 640px) {
+  .core-title {
+    font-size: 18px;
+    letter-spacing: 8px;
+    line-height: 2;
+  }
+}
+
+.input-zone {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.core-textarea {
+  width: 100%;
+  height: 120px;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  font-size: 18px;
+  color: #555;
+  letter-spacing: 1px;
+  line-height: 2;
+  padding: 0 0 16px;
+  font-family: inherit;
+  caret-color: rgba(138, 129, 124, 0.5);
+}
+
+.core-textarea::placeholder {
+  color: #333;
+  opacity: 0.5;
+}
+
+.core-textarea:disabled {
+  opacity: 0.3;
+}
+
+/* 下划线 */
+.input-zone::after {
+  content: '';
+  display: block;
+  height: 1px;
+  background: #222;
+  transition: background 0.5s, opacity 0.5s;
+}
+
+.core-textarea:focus ~ .input-zone::after,
+.input-zone:focus-within::after {
+  background: #333;
+}
+
+.input-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 16px;
+}
+
+.char-counter {
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: #333;
+  font-family: "SF Mono", "Fira Code", monospace;
+}
+
+.seal-btn {
+  font-size: 10px;
+  letter-spacing: 4px;
+  color: #444;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 8px 0;
+  transition: color 0.3s, opacity 0.3s;
+  font-family: inherit;
+}
+
+.seal-btn:disabled {
+  opacity: 0.15;
+  cursor: not-allowed;
+}
+
+.seal-btn:not(:disabled):hover {
+  color: #666;
+}
+
+/* 往日回音 */
+.echo-ghost {
+  position: absolute;
+  bottom: -80px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.echo-line {
+  font-size: 12px;
+  color: #333;
+  letter-spacing: 1px;
+  line-height: 2;
+  opacity: 0.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  filter: blur(1px);
+}
+
+/* ============================================
+   底栏
+   ============================================ */
+.bottom-bar {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+  flex-wrap: wrap;
+  padding-top: 16px;
   transition: opacity 2s ease-in-out;
 }
-.fade-slow-enter-from,
-.fade-slow-leave-to {
-  opacity: 0;
-}
-/* 动画过渡 */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 1.2s ease-in-out;
-}
 
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
+.bottom-bar.faded { opacity: 0; }
 
-.drawer-enter-active,
-.drawer-leave-active {
-  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.drawer-enter-from,
-.drawer-leave-to {
-  transform: translateY(100%);
-}
-
-/* 自定义滚动条 */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 2px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
+.menu-item {
+  font-size: 9px;
+  letter-spacing: 4px;
+  color: #333;
   background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 0;
+  transition: color 0.3s, opacity 0.3s;
+  font-family: inherit;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(138, 129, 124, 0.2);
+.menu-item:hover {
+  color: #555;
+}
+
+.menu-item--ghost {
+  color: #2a2a2a;
+  opacity: 0.5;
+}
+
+.menu-item--ghost:hover {
+  color: #444;
+  opacity: 0.8;
+}
+
+.menu-item:disabled {
+  opacity: 0.1;
+  cursor: not-allowed;
+}
+
+/* ============================================
+   引导页
+   ============================================ */
+.intro-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.intro-text {
+  font-size: 18px;
+  letter-spacing: 3px;
+  color: #555;
+  text-align: center;
+  white-space: pre-line;
+  line-height: 2.5;
+}
+
+.intro-hint {
+  position: absolute;
+  bottom: 80px;
+  font-size: 9px;
+  letter-spacing: 6px;
+  color: #333;
+  animation: breathe 3s ease-in-out infinite;
+}
+
+/* ============================================
+   闪屏
+   ============================================ */
+.splash-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.splash-text {
+  font-size: 11px;
+  letter-spacing: 8px;
+  color: #333;
+  animation: breathe 2s ease-in-out infinite;
+}
+
+/* ============================================
+   静默屏
+   ============================================ */
+.silence-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.silence-text {
+  font-size: 10px;
+  letter-spacing: 10px;
+  color: #333;
+}
+
+/* ============================================
+   锁定提示
+   ============================================ */
+.lock-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(0, 0, 0, 0.98);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.lock-text {
+  font-size: 10px;
+  letter-spacing: 6px;
+  color: #333;
+  text-align: center;
+  line-height: 2.5;
+}
+
+/* ============================================
+   面板通用
+   ============================================ */
+.panel {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: #000;
+  overflow-y: auto;
+}
+
+.panel--overlay {
+  background: rgba(0, 0, 0, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.panel--records {
+  padding-top: 80px;
+}
+
+.panel-close {
+  position: fixed;
+  top: 40px;
+  right: 40px;
+  font-size: 20px;
+  color: #333;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity 0.3s;
+  z-index: 10;
+}
+
+.panel-close:hover { opacity: 0.8; }
+
+.panel-inner {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 80px 40px 60px;
+}
+
+.panel-title {
+  font-size: 14px;
+  letter-spacing: 8px;
+  color: #444;
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.panel-title--small {
+  font-size: 10px;
+  letter-spacing: 10px;
+}
+
+.panel-sub {
+  font-size: 9px;
+  letter-spacing: 4px;
+  color: #333;
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+/* ============================================
+   标本列表
+   ============================================ */
+.specimen-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.specimen-unit {
+  border-top: 1px solid #1a1a1a;
+}
+
+.specimen-head {
+  width: 100%;
+  padding: 24px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.specimen-id {
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: #444;
+  font-family: "SF Mono", monospace;
+}
+
+.specimen-type {
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: #333;
+  text-transform: uppercase;
+}
+
+.specimen-body {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.6s ease, opacity 0.6s ease, padding 0.6s ease;
+}
+
+.specimen-body.open {
+  max-height: 200px;
+  opacity: 1;
+  padding-bottom: 24px;
+}
+
+.specimen-text {
+  font-size: 13px;
+  color: #555;
+  letter-spacing: 1px;
+  line-height: 2.2;
+  padding-left: 16px;
+  border-left: 1px solid #222;
+}
+
+/* ============================================
+   关于文本
+   ============================================ */
+.about-text {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  text-align: center;
+  font-size: 13px;
+  color: #444;
+  letter-spacing: 2px;
+  line-height: 2.4;
+}
+
+.about-sig {
+  font-size: 11px;
+  color: #333;
+  letter-spacing: 3px;
+  margin-top: 24px;
+}
+
+/* ============================================
+   破裂仪式
+   ============================================ */
+.crack-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.crack-visual {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.crack-beam {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 1px;
+  height: 60%;
+  background: #555;
+  filter: blur(8px);
+  opacity: 0.6;
+}
+
+.crack-svg {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 80%;
+  opacity: 0.5;
+}
+
+.crack-line {
+  fill: none;
+  stroke: #222;
+  stroke-width: 1.5;
+  stroke-dasharray: 2000;
+  stroke-dashoffset: 2000;
+  animation: draw 1.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+@keyframes draw { to { stroke-dashoffset: 0; } }
+
+.crack-line.glow {
+  stroke: #555;
+  filter: drop-shadow(0 0 3px rgba(85, 85, 85, 0.5));
+}
+
+.crack-reveal {
+  position: absolute;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 40px;
+}
+
+.crack-message {
+  font-size: 11px;
+  letter-spacing: 8px;
+  color: #444;
+}
+
+.crack-action {
+  font-size: 9px;
+  letter-spacing: 4px;
+  color: #333;
+  background: transparent;
+  border: 1px solid #222;
+  padding: 12px 24px;
+  cursor: pointer;
+  transition: border-color 0.3s, color 0.3s;
+}
+
+.crack-action:hover {
+  border-color: #444;
+  color: #555;
+}
+
+/* ============================================
+   地质剖面
+   ============================================ */
+.records-list {
+  position: relative;
+  padding-left: 48px;
+}
+
+.records-axis {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: #1a1a1a;
+}
+
+.record-unit {
+  padding: 20px 0;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+.record-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.record-mark {
+  width: 48px;
+  height: 1px;
+  background: #222;
+  transform-origin: left;
+  transition: background 0.3s, width 0.3s;
+}
+
+.record-head:hover .record-mark {
+  background: #444;
+  width: 64px;
+}
+
+.record-title {
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: #333;
+  font-family: "SF Mono", monospace;
+  transition: color 0.3s;
+}
+
+.record-head:hover .record-title {
+  color: #555;
+}
+
+.record-body {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  margin-left: 64px;
+  transition: max-height 0.5s ease, opacity 0.5s ease;
+}
+
+.record-body.open {
+  max-height: 150px;
+  opacity: 1;
+  padding-top: 16px;
+}
+
+.record-text {
+  font-size: 12px;
+  color: #444;
+  letter-spacing: 1px;
+  line-height: 2;
+}
+
+/* ============================================
+   化石占卜
+   ============================================ */
+.fossil-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.fossil-text {
+  font-size: 16px;
+  letter-spacing: 6px;
+  color: #555;
+  text-align: center;
+  line-height: 2.5;
+  filter: blur(20px);
+  opacity: 0;
+  animation: fossil-appear 4s ease-out forwards;
+}
+
+@keyframes fossil-appear {
+  0% { filter: blur(20px); opacity: 0; }
+  30% { filter: blur(15px); opacity: 0.2; }
+  60% { filter: blur(8px); opacity: 0.5; }
+  100% { filter: blur(0); opacity: 1; }
+}
+
+.fossil-close {
+  position: absolute;
+  bottom: 60px;
+  font-size: 9px;
+  letter-spacing: 5px;
+  color: #333;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity 0.3s;
+}
+
+.fossil-close:hover { opacity: 0.8; }
+
+.fossil-error {
+  font-size: 10px;
+  letter-spacing: 4px;
+  color: #333;
+  text-align: center;
+  line-height: 2.5;
+}
+
+/* ============================================
+   无声共鸣
+   ============================================ */
+.resonance-screen {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 40px;
+  pointer-events: none;
+}
+
+.resonance-text {
+  font-size: 12px;
+  letter-spacing: 6px;
+  color: #444;
+  text-align: center;
+  line-height: 2;
+}
+
+/* 无声共鸣动画 */
+.resonance-enter-active { transition: opacity 5s ease-in; }
+.resonance-enter-from { opacity: 0; }
+.resonance-leave-active { transition: opacity 3s ease-out; }
+.resonance-leave-to { opacity: 0; }
+
+/* ============================================
+   过渡动画
+   ============================================ */
+.fade-enter-active, .fade-leave-active { transition: opacity 1.5s ease-in-out; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
+.fade-slow-enter-active, .fade-slow-leave-active { transition: opacity 2.5s ease-in-out; }
+.fade-slow-enter-from, .fade-slow-leave-to { opacity: 0; }
+
+.slide-up-enter-active, .slide-up-leave-active { transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
+.slide-up-enter-from, .slide-up-leave-to { transform: translateY(100%); }
+
+.fossil-reveal-enter-active { transition: opacity 1s ease-in; }
+.fossil-reveal-enter-from { opacity: 0; }
+.fossil-reveal-leave-active { transition: opacity 0.8s ease-out; }
+.fossil-reveal-leave-to { opacity: 0; }
+
+/* ============================================
+   选中样式
+   ============================================ */
+.app-root ::selection {
+  background: rgba(85, 85, 85, 0.2);
+  color: #555;
 }
 </style>
