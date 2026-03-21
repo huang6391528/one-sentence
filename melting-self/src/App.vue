@@ -66,6 +66,13 @@ const PLACEHOLDERS = [
   '只有沉默是诚实的...',
 ];
 
+/**
+ * 深渊回声 - 前端 MVP 版本的向量检索模拟
+ */
+const MOCK_ECHOES = [
+  '我们应当想象西西弗斯是幸福的。',
+];
+
 // ============================================
 // II. 状态
 // ============================================
@@ -110,7 +117,19 @@ const resonanceText = ref('');
 const resonanceVisible = ref(false);
 const isResonating = ref(false);
 
+// 深渊回声
+const abyssEchoText = ref('');
+const abyssEchoVisible = ref(false);
+
 const isInputFocused = ref(false);
+
+// ============================================
+// 拾音器 - Web Audio 地层轰鸣
+// ============================================
+let audioCtx = null;
+let noiseSource = null;
+let gainNode = null;
+const isListening = ref(false);
 
 // ============================================
 // III. 计算属性
@@ -129,6 +148,14 @@ const canShowFossilButton = computed(() => {
 const canInput = computed(() => {
   return isExhibitionMode.value || !hasPostedToday.value;
 });
+
+const todayDateStr = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
 
 const basePlaceholder = ref(PLACEHOLDERS[0]);
 const currentPlaceholder = computed(() => {
@@ -198,20 +225,21 @@ const openRecords = () => {
 
   // 月末裂开仪式
   crackingPhase.value = 1;
-  
-  // 精准卡点：裂纹动画 1.8s，在 1.3s 时（撕裂瞬间）触发 crack.mp3
+
+  // 裂纹动画总时序：
+  // 0ms   → crackingPhase=2，裂纹开始划线（dashoffset 从 2000→0，1.8s 线性）
+  // 800ms → dash-offset 到达 ~55% 处，裂纹视觉上开始加粗（stroke-width 加过渡）
+  // 1300ms→ dash-offset 到达 ~72% 处，视觉撕裂峰值，触发 crack.mp3
+  // 1800ms→ dashoffset=0，裂纹完全展开
+  // 2300ms→ crackingPhase=3，透光效果
+  // 3300ms→ crackingPhase=4，文字按钮出现
+  crackingPhase.value = 2;
+  playExternalSound('/crack.mp3', 1.0);
+
   setTimeout(() => {
-    crackingPhase.value = 2;
-    
-    setTimeout(() => {
-      playExternalSound('/crack.mp3', 1.0);
-    }, 1300);
-    
-    setTimeout(() => {
-      crackingPhase.value = 3;
-      setTimeout(() => { crackingPhase.value = 4; }, 1000);
-    }, 1500);
-  }, 500);
+    crackingPhase.value = 3;
+    setTimeout(() => { crackingPhase.value = 4; }, 1000);
+  }, 1800);
 };
 
 const toggleSpecimen = (id) => {
@@ -302,6 +330,17 @@ const handleSeal = async () => {
 
   setTimeout(() => { isSilenced.value = true; }, 2500);
 
+  // 深渊回声：动画执行到一半时随机抽取
+  setTimeout(() => {
+    const randomEcho = MOCK_ECHOES[Math.floor(Math.random() * MOCK_ECHOES.length)];
+    abyssEchoText.value = randomEcho;
+    abyssEchoVisible.value = true;
+    setTimeout(() => {
+      abyssEchoVisible.value = false;
+      setTimeout(() => { abyssEchoText.value = ''; }, 2000);
+    }, 10000);
+  }, 2500);
+
   setTimeout(() => {
     isSilenced.value = false;
     isSealed.value = false;
@@ -309,7 +348,7 @@ const handleSeal = async () => {
     isInputFocused.value = false;
     if (!isExhibitionMode.value) {
       hasPostedToday.value = true;
-      localStorage.setItem('melting_last_post_date', new Date().toDateString());
+      localStorage.setItem('melting_last_post_date', todayDateStr());
     }
   }, 6000);
 };
@@ -339,6 +378,70 @@ const triggerSilentResonance = async () => {
   }
 };
 
+/**
+ * 拾音器：纯代码合成布朗噪音
+ * - Brown noise: 积分白噪音，等效为极低频的物理轰鸣
+ * - BiquadFilterNode (lowpass, ~380Hz): 模拟深地层对高频的吸收
+ * - gainNode 平滑淡入/淡出，避免爆音
+ */
+const toggleListening = () => {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+
+  if (isListening.value) {
+    // 淡出
+    const now = audioCtx.currentTime;
+    gainNode.gain.cancelScheduledValues(now);
+    gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+    gainNode.gain.linearRampToValueAtTime(0, now + 1.8);
+    const src = noiseSource;
+    const g = gainNode;
+    setTimeout(() => {
+      try { src.stop(); } catch {}
+      g.disconnect();
+    }, 2000);
+    noiseSource = null;
+    gainNode = null;
+    isListening.value = false;
+  } else {
+    // 重置并启动
+    const sampleRate = audioCtx.sampleRate;
+    const bufferSize = sampleRate * 6; // 6 秒循环缓冲
+
+    // Brown noise: 在每个采样点加上随机步进并积分
+    const buffer = audioCtx.createBuffer(1, bufferSize, sampleRate);
+    const data = buffer.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      last = (last + 0.02 * white) / 1.02;
+      data[i] = last * 3.5;
+    }
+
+    noiseSource = audioCtx.createBufferSource();
+    noiseSource.buffer = buffer;
+    noiseSource.loop = true;
+
+    // 深地层低通滤波：截掉高频，让轰鸣更加沉闷、厚重
+    const lpf = audioCtx.createBiquadFilter();
+    lpf.type = 'lowpass';
+    lpf.frequency.value = 380;
+    lpf.Q.value = 0.8;
+
+    gainNode = audioCtx.createGain();
+    gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.55, audioCtx.currentTime + 2.5);
+
+    noiseSource.connect(lpf);
+    lpf.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    noiseSource.start();
+
+    isListening.value = true;
+  }
+};
+
 // ============================================
 // V. 生命周期
 // ============================================
@@ -361,7 +464,7 @@ onMounted(() => {
 
   if (!isExhibitionMode.value) {
     const lastPostDate = localStorage.getItem('melting_last_post_date');
-    if (lastPostDate === new Date().toDateString()) {
+    if (lastPostDate === todayDateStr()) {
       hasPostedToday.value = true;
     }
   }
@@ -398,6 +501,11 @@ watch(isExhibitionMode, (newVal) => {
     <!-- 火柴光效 -->
     <div v-if="isLampLit && !isSealed" class="flame-glow" aria-hidden="true"></div>
 
+    <!-- 西西弗斯隐形水印 -->
+    <div class="sisyphus-watermark" :class="{ 'lit': isLampLit }" aria-hidden="true">
+      Il faut imaginer Sisyphe heureux.
+    </div>
+
     <!-- ============================================
          引导页 - 系统旁白
          ============================================ -->
@@ -429,14 +537,14 @@ watch(isExhibitionMode, (newVal) => {
       <!-- 顶栏 - 科研仪器刻度 -->
       <header class="top-bar" :class="{ 'faded': isSealed }">
         <div class="corner corner--tl">
-          <span class="corner-label">总深度</span>
+          <span class="corner-label">TOTAL DEPTH</span>
           <span class="corner-value" :class="{ 'pulse': depthJump }">
             {{ worldDepth.toLocaleString() }}<em>m</em>
           </span>
           <span v-if="currentEpoch" class="corner-epoch">{{ currentEpoch }}</span>
         </div>
         <div class="corner corner--tr">
-          <span class="corner-label">今日沉积</span>
+          <span class="corner-label">TODAY'S SINK</span>
           <span class="corner-value corner-value--dim">+{{ todayDepth.toLocaleString() }}m</span>
         </div>
       </header>
@@ -449,37 +557,45 @@ watch(isExhibitionMode, (newVal) => {
           <span class="center-sub">写下它。压入岩层。</span>
         </h1>
 
-        <div 
-          class="input-zone"
-          :class="{ 'focused': isInputFocused }"
-          :style="dynamicSinkStyle"
-        >
-          <textarea
-            v-model="inputText"
-            :maxlength="MAX_CHARS"
-            :placeholder="currentPlaceholder"
-            :disabled="isSealed || !canInput"
-            class="input-field"
-            @focus="isInputFocused = true"
-            @blur="isInputFocused = false"
-          ></textarea>
-          <div class="input-underline"></div>
+        <!-- 提交后的冰冷终结语 -->
+        <div v-if="hasPostedToday && !isSealed && !isExhibitionMode" class="sealed-done">
+          <p class="sealed-title">今日沉积已完成。</p>
+          <p class="sealed-sub">地层已封闭。</p>
         </div>
 
-        <div class="input-controls">
-          <span class="char-count" :class="charColorClass">
-            {{ inputText.length }} / {{ MAX_CHARS }}
-          </span>
-          <button
-            @click="handleSeal"
-            :disabled="!inputText.trim() || !canInput"
-            class="seal-btn"
-          >封存</button>
-        </div>
+        <!-- 正常输入状态 -->
+        <template v-else>
+          <div
+            class="input-zone"
+            :class="{ 'focused': isInputFocused }"
+            :style="dynamicSinkStyle"
+          >
+            <textarea
+              v-model="inputText"
+              :maxlength="MAX_CHARS"
+              :placeholder="currentPlaceholder"
+              :disabled="isSealed || !canInput"
+              class="input-field"
+              @focus="isInputFocused = true"
+              @blur="isInputFocused = false"
+            ></textarea>
+            <div class="input-underline"></div>
+          </div>
 
-        <div class="fossil-echo">
-          <p v-for="(r, i) in recentRecords" :key="i" class="echo-text">{{ r.text }}</p>
-        </div>
+          <div class="input-controls">
+            <span class="char-count" :class="charColorClass">
+              {{ inputText.length }} / {{ MAX_CHARS }}
+            </span>
+            <button
+              @click="handleSeal"
+              :disabled="!inputText.trim() || !canInput"
+              class="seal-btn"
+            >封存</button>
+          </div>
+        </template>
+
+        <!-- 西西弗斯投影 -->
+        <div class="sisyphus-shadow" aria-hidden="true"></div>
       </main>
 
       <!-- 底栏 -->
@@ -489,7 +605,10 @@ watch(isExhibitionMode, (newVal) => {
         <button @click="toggleLamp" class="menu-btn">
           [ {{ isLampLit ? '熄灭' : '划一根火柴' }} ]
         </button>
-        <button @click="openRecords" class="menu-btn">[ 岩层 ]</button>
+        <button @click="openRecords" class="menu-btn">[ 岩层深处 ]</button>
+        <button @click="toggleListening" class="menu-btn menu-btn--ghost">
+          [ 拾音器 {{ isListening ? '· 运转中' : '' }} ]
+        </button>
         <button
           v-if="canShowFossilButton"
           @click="triggerFossilDivination"
@@ -639,6 +758,16 @@ watch(isExhibitionMode, (newVal) => {
         <p class="resonance-text">{{ resonanceText }}</p>
       </div>
     </transition>
+
+    <!-- ============================================
+         深渊回声
+         ============================================ -->
+    <transition name="abyss-echo">
+      <div v-if="abyssEchoVisible" class="abyss-echo-screen">
+        <p class="abyss-echo-days">342 天前，有人在此埋下类似的痛苦：</p>
+        <p class="abyss-echo-text">"{{ abyssEchoText }}"</p>
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -689,23 +818,25 @@ body {
   width: 100vw;
   height: 100vh;
   height: 100dvh;
-  background: 
-    radial-gradient(ellipse at 20% 15%, rgba(18, 16, 20, 0.7) 0%, transparent 45%),
-    radial-gradient(ellipse at 80% 85%, rgba(14, 12, 16, 0.5) 0%, transparent 40%),
-    radial-gradient(ellipse at 50% 110%, rgba(10, 8, 12, 0.8) 0%, transparent 55%),
-    linear-gradient(180deg, #040405 0%, #030304 50%, #020203 100%);
+  background:
+    /* 岩石颗粒噪点层 */
+    url('data:image/svg+xml,%3Csvg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="noise"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" stitchTiles="stitch" seed="66"/%3E%3CfeColorMatrix type="saturate" values="0"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23noise)"/%3E%3C/svg%3E'),
+    /* 中心微光 */
+    radial-gradient(ellipse at 50% 50%, #111 0%, #0a0a0a 40%, #050505 70%, #000 100%);
+  background-blend-mode: overlay, normal;
   position: relative;
   overflow: hidden;
 }
 
-/* 深渊纹理 */
+/* 深渊纹理 - 叠加层 */
 .abyss-texture {
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  opacity: 0.6;
-  background-image: url('data:image/svg+xml,%3Csvg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="noise"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="4" stitchTiles="stitch" seed="24"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23noise)" opacity="0.05"/%3E%3C/svg%3E');
+  opacity: 0.4;
+  background-image: url('data:image/svg+xml,%3Csvg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="noise"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="4" stitchTiles="stitch" seed="24"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23noise)" opacity="0.12"/%3E%3C/svg%3E');
+  mix-blend-mode: overlay;
 }
 
 /* 深渊呼吸 */
@@ -740,77 +871,52 @@ body {
 }
 
 /* ============================================
-   火柴光效 - 焦灼摇曳
+   火柴光效 - 真实物理摇曳
    ============================================ */
 .flame-glow {
   position: fixed;
-  top: 50%;
+  top: 55%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 140vmin;
-  height: 140vmin;
-  max-width: 1100px;
-  max-height: 1100px;
-  background: 
-    radial-gradient(circle at 50% 50%, 
-      rgba(255, 200, 100, 0.35) 0%, 
-      rgba(255, 160, 60, 0.28) 15%,
-      rgba(230, 120, 40, 0.18) 30%,
-      rgba(180, 80, 25, 0.1) 50%, 
-      rgba(120, 50, 15, 0.05) 70%,
-      transparent 85%
-    );
-  filter: blur(50px);
-  animation: flame-tremble 0.08s infinite alternate;
+  width: 120vmin;
+  height: 120vmin;
+  max-width: 900px;
+  max-height: 900px;
+  background: radial-gradient(
+    ellipse 80% 60% at 50% 45%,
+    rgba(214, 110, 24, 0.15) 0%,
+    rgba(180, 80, 20, 0.08) 30%,
+    rgba(140, 55, 15, 0.04) 55%,
+    transparent 75%
+  );
+  filter: blur(60px);
+  animation: flame-waver 0.14s infinite alternate;
   pointer-events: none;
   z-index: 1;
+  transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-@keyframes flame-tremble {
-  0% { 
-    opacity: 0.92; 
-    transform: translate(-50%, -50%) scale(1) rotate(-0.4deg) translateY(0);
-    filter: blur(50px) brightness(1.15) saturate(1.1);
+/* 真实火焰摇曳：opacity 在 0.6-0.9 间游走，制造随时被风吹灭的物理焦灼感 */
+@keyframes flame-waver {
+  0% {
+    opacity: 0.82;
+    transform: translate(-50%, -50%) scale(1) rotate(-0.3deg);
   }
-  12% { 
-    opacity: 0.65; 
-    transform: translate(-50%, -50%) scale(0.97) rotate(0.6deg) translateY(2px);
-    filter: blur(55px) brightness(0.85) saturate(0.9);
+  23% {
+    opacity: 0.65;
+    transform: translate(-50%, -50%) scale(0.97) rotate(0.5deg) translateY(2px);
   }
-  25% { 
-    opacity: 1; 
-    transform: translate(-50%, -50%) scale(1.03) rotate(-0.2deg) translateY(-1px);
-    filter: blur(45px) brightness(1.25) saturate(1.15);
+  45% {
+    opacity: 0.88;
+    transform: translate(-50%, -50%) scale(1.02) rotate(-0.2deg) translateY(-1px);
   }
-  37% { 
-    opacity: 0.78; 
-    transform: translate(-50%, -50%) scale(0.96) rotate(0.8deg) translateY(3px);
-    filter: blur(58px) brightness(0.9) saturate(0.95);
+  78% {
+    opacity: 0.72;
+    transform: translate(-50%, -50%) scale(0.96) rotate(0.7deg) translateY(3px);
   }
-  50% { 
-    opacity: 0.88; 
-    transform: translate(-50%, -50%) scale(1.01) rotate(-0.5deg) translateY(1px);
-    filter: blur(52px) brightness(1.1) saturate(1.05);
-  }
-  62% { 
-    opacity: 1; 
-    transform: translate(-50%, -50%) scale(1.04) rotate(0.3deg) translateY(-2px);
-    filter: blur(48px) brightness(1.2) saturate(1.1);
-  }
-  75% { 
-    opacity: 0.72; 
-    transform: translate(-50%, -50%) scale(0.98) rotate(-0.7deg) translateY(2px);
-    filter: blur(56px) brightness(0.88) saturate(0.92);
-  }
-  87% { 
-    opacity: 0.95; 
-    transform: translate(-50%, -50%) scale(1.02) rotate(0.4deg) translateY(0);
-    filter: blur(50px) brightness(1.12) saturate(1.08);
-  }
-  100% { 
-    opacity: 0.82; 
-    transform: translate(-50%, -50%) scale(0.99) rotate(-0.3deg) translateY(1px);
-    filter: blur(53px) brightness(0.95) saturate(0.98);
+  100% {
+    opacity: 0.78;
+    transform: translate(-50%, -50%) scale(1.01) rotate(-0.4deg) translateY(1px);
   }
 }
 
@@ -918,44 +1024,44 @@ body {
 .corner--tr { align-items: flex-end; }
 
 .corner-label {
-  font-size: 10px;
-  letter-spacing: 0.2em;
-  color: rgba(255, 255, 255, 0.35);
+  font-size: 12px;
+  letter-spacing: 0.25em;
+  color: #777777;
   font-family: "SF Mono", "Fira Code", monospace;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .corner-value {
-  font-size: 14px;
-  letter-spacing: 0.06em;
-  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #777777;
   font-family: "SF Mono", "Fira Code", monospace;
   transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s;
 }
 
 .corner-value.pulse {
-  transform: translateY(-4px) scale(1.08);
-  color: rgba(255, 255, 255, 0.75);
+  transform: translateY(-5px) scale(1.1);
+  color: #aaaaaa;
 }
 
 .corner-value em {
   font-style: normal;
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.35);
-  margin-left: 4px;
+  font-size: 11px;
+  color: #555555;
+  margin-left: 5px;
 }
 
 .corner-value--dim {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.4);
-  letter-spacing: 0.1em;
+  color: #666666;
+  letter-spacing: 0.12em;
 }
 
 .corner-epoch {
-  font-size: 12px;
+  font-size: 11px;
   letter-spacing: 0.4em;
-  color: rgba(255, 255, 255, 0.25);
-  margin-top: 16px;
+  color: #444444;
+  margin-top: 18px;
   animation: breathe-hint 7s ease-in-out infinite;
 }
 
@@ -1080,38 +1186,59 @@ body {
 }
 
 .fossil-echo {
-  position: absolute;
-  bottom: -130px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 500px;
-  text-align: center;
-  pointer-events: none;
+  display: none; /* 隐入背景，不干扰主视觉 */
 }
 
-.echo-text {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.1);
-  letter-spacing: 0.02em;
-  line-height: 2.6;
-  opacity: 0.12;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* ============================================
+   西西弗斯投影 - 荒诞命运感
+   ============================================ */
+.sisyphus-shadow {
+  position: fixed;
+  top: -40%;
+  left: -20%;
+  width: 140vw;
+  height: 140vh;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.025;
+  background: radial-gradient(ellipse at 60% 70%, rgba(60, 50, 40, 0.8) 0%, transparent 50%);
+  filter: blur(80px);
+  animation: sisyphus-drift 60s linear infinite;
+}
+
+@keyframes sisyphus-drift {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(3vw, 2vh) rotate(1deg); }
+  50% { transform: translate(1vw, 4vh) rotate(-0.5deg); }
+  75% { transform: translate(-2vw, 1vh) rotate(0.5deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+
+/* 西西弗斯隐形水印 - 火柴点亮时浮现 */
+.sisyphus-watermark {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 0;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: rgba(255, 255, 255, 0.06);
+  font-style: italic;
+  opacity: 0;
+  transition: opacity 3s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
   white-space: nowrap;
-  filter: blur(0.2px);
+}
+
+.sisyphus-watermark.lit {
+  opacity: 0.28;
+  text-shadow: 0 0 10px rgba(214, 110, 24, 0.5);
 }
 
 /* ============================================
    底栏
    ============================================ */
-.bottom-bar {
-  display: flex;
-  justify-content: center;
-  gap: 52px;
-  flex-wrap: wrap;
-  transition: opacity 3s cubic-bezier(0.4, 0, 0.2, 1);
-}
 
 .bottom-bar.faded { opacity: 0; }
 
@@ -1599,6 +1726,67 @@ body {
 .resonance-enter-from { opacity: 0; }
 .resonance-leave-active { transition: opacity 5s cubic-bezier(0.4, 0, 0.2, 1); }
 .resonance-leave-to { opacity: 0; }
+
+/* ============================================
+   深渊回声
+   ============================================ */
+.abyss-echo-screen {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 100px 60px 120px;
+  pointer-events: none;
+}
+
+.abyss-echo-days {
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  color: rgba(255, 255, 255, 0.25);
+  margin-bottom: 12px;
+}
+
+.abyss-echo-text {
+  font-size: 12px;
+  letter-spacing: 0.15em;
+  color: rgba(255, 255, 255, 0.4);
+  text-align: center;
+  font-style: italic;
+  max-width: 600px;
+}
+
+.abyss-echo-enter-active { transition: opacity 5s cubic-bezier(0.4, 0, 0.2, 1); }
+.abyss-echo-enter-from { opacity: 0; }
+.abyss-echo-leave-active { transition: opacity 3s cubic-bezier(0.4, 0, 0.2, 1); }
+.abyss-echo-leave-to { opacity: 0; }
+
+/* ============================================
+   密封完成
+   ============================================ */
+.sealed-done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.sealed-title {
+  font-size: 13px;
+  letter-spacing: 0.3em;
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 300;
+}
+
+.sealed-sub {
+  font-size: 11px;
+  letter-spacing: 0.35em;
+  color: rgba(255, 255, 255, 0.25);
+}
 
 /* ============================================
    过渡动画
