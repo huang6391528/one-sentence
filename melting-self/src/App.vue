@@ -1,18 +1,18 @@
 <script setup>
 /**
  * ============================================
- * One Sentence - 情感艺术网页装置 v2.0
+ * One Sentence - 情感艺术网页装置 v5.0
  * ============================================
  * 
- * 设计重构：
- * - 原研哉式极简主义：纯黑背景，无限留白
- * - Awwwards 级视觉张力：残酷的字体层级
- * - 坐标轴式布局：四角锚定，绝对居中
+ * 哲学重构：
+ * - 韩炳哲《倦怠社会》：绩效社会中的自我剥削
+ * - 加缪荒诞主义：在无意义的宇宙中寻找真实的重量
+ * - 语言异化：黑话流利却丧失表达痛苦的能力
  */
 
 import { ref, computed, onMounted, watch } from 'vue';
+import { playExternalSound } from './utils/audioEngine.js';
 import { fetchFossilPoem } from './utils/deepseek.js';
-import { playTectonicShift } from './utils/audioEngine.js';
 import { saveSentenceToCloud, isSupabaseAvailable, supabase } from './utils/supabase.js';
 import { silentResonance } from './utils/llm.js';
 
@@ -22,25 +22,48 @@ import { silentResonance } from './utils/llm.js';
 
 const MAX_CHARS = 140;
 
+/**
+ * 标本数据
+ * 去重与深化：聚焦"绩效社会"、"感知丧失"、"语言异化"三大痛点
+ */
 const SPECIMENS = [
-  { id: '#009', type: '夜行', text: '凌晨三点的街道，没有任何人知道你存在过。城市像一台暂停的机器，只有路灯在运行。' },
-  { id: '#017', type: '异化', text: '我们以为自己在向上攀登，后来才发现，那只是把石头推上另一条转速更快的履带。' },
-  { id: '#024', type: '荣光', text: '曾经跨越山海的勋章，成了一枚枚钉死在标本盒里的蝴蝶。美得窒息，却毫无生机。' },
-  { id: '#042', type: '镜像', text: '那个曾经热烈过的"旧我"，成了审判此刻最严苛的法官。我们在隔着时间，审视一具陌生而完美的躯壳。' },
-  { id: '#103', type: '凋零', text: '所谓怀旧，不是对青春的眷恋，而是对自我丧失的无力凭吊。我们哭泣，是惊觉那个自由意志的自己，早已被囚禁在过去的剪影里。' },
+  { 
+    id: '#009', 
+    type: '夜行', 
+    text: '凌晨三点的街道，没有任何人知道你存在过。城市像一台暂停的机器，只有路灯在运行。' 
+  },
+  { 
+    id: '#017', 
+    type: '异化', 
+    text: '我们以为自己在向上攀登，后来才发现，那只是把石头推上另一条转速更快的履带。' 
+  },
+  { 
+    id: '#042', 
+    type: '镜像', 
+    text: '那个曾经热烈过的"旧我"，成了审判此刻最严苛的法官。我们在隔着时间，审视一具陌生而完美的躯壳。' 
+  },
+  { 
+    id: '#103', 
+    type: '凋零', 
+    text: '所谓怀旧，不是对青春的眷恋，而是对自我丧失的无力凭吊。我们哭泣，是惊觉那个自由意志的自己，早已被囚禁在过去的剪影里。' 
+  },
 ];
 
+/**
+ * 开场四幕 - 系统旁白
+ * 宏大、冷酷、有窒息感的"系统审判"
+ */
 const INTRO_TEXTS = [
-  '18岁\n你相信努力会改变命运',
-  '后来\n你拥有了很多身份',
-  '有些话\n不能说给任何人',
-  '把它埋在这里',
+  '我们习惯用“科研”、“产出”和“最优解”来量化生活，\n却在深夜，找不到一个词来翻译真实的疲惫。',
+  '连休息、健身与所谓的“提升自我”，\n有时也变成了另一种形式的系统维护。',
+  '社会关系里的标签总是光鲜亮丽，\n但那些未曾声张的脆弱，才是生命真实的底色。',
+  '不用完美，无需共鸣。\n把今天最重的那句话交给岩层，然后轻装向前。',
 ];
 
 const PLACEHOLDERS = [
-  '这里没有围观...',
-  '写下它，然后压入岩层...',
-  '只有时间在听...',
+  '那些无法发声的重量...',
+  '让它沉入地质时间...',
+  '只有沉默是诚实的...',
 ];
 
 // ============================================
@@ -87,6 +110,8 @@ const resonanceText = ref('');
 const resonanceVisible = ref(false);
 const isResonating = ref(false);
 
+const isInputFocused = ref(false);
+
 // ============================================
 // III. 计算属性
 // ============================================
@@ -107,7 +132,7 @@ const canInput = computed(() => {
 
 const basePlaceholder = ref(PLACEHOLDERS[0]);
 const currentPlaceholder = computed(() => {
-  if (!canInput.value) return '今日的重量已落入地底。请等待下一个黑夜。';
+  if (!canInput.value) return '重量已沉入地质时间。请等待下一个黑夜。';
   return basePlaceholder.value;
 });
 
@@ -119,23 +144,23 @@ const todayDate = computed(() => {
 const currentEpoch = computed(() => {
   if (worldDepth.value >= 10000) return '黑曜石纪元';
   if (worldDepth.value >= 1000) return '沉积纪元';
-  if (worldDepth.value >= 100) return '第一层地壳已形成';
+  if (worldDepth.value >= 100) return '地壳形成中';
   return '';
 });
 
 const charColorClass = computed(() => {
   const len = inputText.value.length;
-  if (len >= MAX_CHARS) return 'text-[#555]';
-  if (len > 100) return 'text-[#444]';
-  return 'text-[#333]';
+  if (len >= MAX_CHARS) return 'text-[#888]';
+  if (len > 100) return 'text-[#777]';
+  return 'text-[#666]';
 });
 
 const dynamicSinkStyle = computed(() => {
   if (!isSealed.value) return {};
   return {
-    transform: 'translateY(30px)',
+    transform: 'translateY(40px)',
     opacity: 0,
-    transition: 'all 2.5s ease-in',
+    transition: 'all 2.5s cubic-bezier(0.4, 0, 0.2, 1)',
   };
 });
 
@@ -152,10 +177,11 @@ const nextIntroStep = () => {
   }
 };
 
+
 const openRecords = () => {
   if (!isExhibitionMode.value && !isEndOfMonth()) {
     showLockMessage.value = true;
-    setTimeout(() => { showLockMessage.value = false; }, 3000);
+    setTimeout(() => { showLockMessage.value = false; }, 3500);
     return;
   }
 
@@ -170,23 +196,22 @@ const openRecords = () => {
     strataRecords.value = [{ id: 0, title: '空', text: '岩层深处空无一物。', expanded: false }];
   }
 
+  // 月末裂开仪式
   crackingPhase.value = 1;
+  
+  // 精准卡点：裂纹动画 1.8s，在 1.3s 时（撕裂瞬间）触发 crack.mp3
   setTimeout(() => {
     crackingPhase.value = 2;
-    playSound('/crack.mp3', 0.8);
+    
+    setTimeout(() => {
+      playExternalSound('/crack.mp3', 1.0);
+    }, 1300);
+    
     setTimeout(() => {
       crackingPhase.value = 3;
       setTimeout(() => { crackingPhase.value = 4; }, 1000);
     }, 1500);
   }, 500);
-};
-
-const playSound = (src, volume = 0.6) => {
-  try {
-    const sound = new Audio(src);
-    sound.volume = volume;
-    sound.play().catch(() => {});
-  } catch {}
 };
 
 const toggleSpecimen = (id) => {
@@ -195,6 +220,15 @@ const toggleSpecimen = (id) => {
 
 const toggleRecord = (index) => {
   strataRecords.value[index].expanded = !strataRecords.value[index].expanded;
+};
+
+const closeFossil = () => {
+  fossilRevealed.value = false;
+  fossilPoem.value = '';
+};
+
+const closeFossilError = () => {
+  fossilError.value = '';
 };
 
 const triggerFossilDivination = async () => {
@@ -226,9 +260,7 @@ const handleSeal = async () => {
   if (!inputText.value.trim() || !canInput.value) return;
 
   isSealed.value = true;
-
-  playSound('/stone.mp3', 0.6);
-  setTimeout(() => playTectonicShift(), 200);
+  playExternalSound('/boom.mp3', 0.9);
 
   if (navigator.vibrate) {
     navigator.vibrate([50, 30, 50]);
@@ -250,7 +282,7 @@ const handleSeal = async () => {
   recentRecords.value = savedRecords.slice(0, 3);
 
   saveSentenceToCloud(inputText.value.trim()).then(success => {
-    if (success) console.log('[封存] 云端归档成功');
+    if (success) console.log('[封存] 云端归档完成');
   });
 
   if (isExhibitionMode.value) {
@@ -274,6 +306,7 @@ const handleSeal = async () => {
     isSilenced.value = false;
     isSealed.value = false;
     inputText.value = '';
+    isInputFocused.value = false;
     if (!isExhibitionMode.value) {
       hasPostedToday.value = true;
       localStorage.setItem('melting_last_post_date', new Date().toDateString());
@@ -313,7 +346,7 @@ const triggerSilentResonance = async () => {
 onMounted(() => {
   if (window.location.search.includes('mode=exhibition')) {
     isExhibitionMode.value = true;
-    console.log('[God Switch] 展览模式已激活');
+    console.log('[上帝开关] 展览模式已激活');
   }
 
   const seen = localStorage.getItem('hasSeenMeltingIntro');
@@ -352,115 +385,116 @@ watch(isExhibitionMode, (newVal) => {
 
 <template>
   <!-- ============================================
-       根容器
+       根容器 - 深渊
        ============================================ -->
-  <div class="app-root" :class="{ 'shake-x': isPageShaking, 'shake-y': isDeepShaking }">
+  <div class="abyss-root" :class="{ 'shake-x': isPageShaking, 'shake-y': isDeepShaking }">
 
-    <!-- 噪点纹理 -->
-    <div class="noise-layer" aria-hidden="true"></div>
+    <!-- 深渊纹理 -->
+    <div class="abyss-texture" aria-hidden="true"></div>
+    
+    <!-- 深渊呼吸 -->
+    <div class="abyss-breath" aria-hidden="true"></div>
 
-    <!-- 油灯光效 -->
-    <div v-if="isLampLit && !isSealed" class="lamp-glow" aria-hidden="true"></div>
+    <!-- 火柴光效 -->
+    <div v-if="isLampLit && !isSealed" class="flame-glow" aria-hidden="true"></div>
 
     <!-- ============================================
-         引导页
+         引导页 - 系统旁白
          ============================================ -->
-    <div v-if="!hasSeenIntro" class="intro-screen" @click="nextIntroStep">
-      <transition name="fade" mode="out-in">
-        <p :key="introStep" class="intro-text">{{ INTRO_TEXTS[introStep] }}</p>
-      </transition>
-      <p class="intro-hint">点击继续</p>
+    <div v-if="!hasSeenIntro" class="intro-void" @click="nextIntroStep">
+      <div class="intro-content">
+        <transition name="fade-philosophy" mode="out-in">
+          <p :key="introStep" class="intro-copy">{{ INTRO_TEXTS[introStep] }}</p>
+        </transition>
+      </div>
+      <div class="intro-hint">
+        <span class="hint-text">点击继续</span>
+      </div>
     </div>
 
     <!-- ============================================
          闪屏
          ============================================ -->
-    <transition name="fade">
-      <div v-if="hasSeenIntro && showSplash" class="splash-screen">
-        <p class="splash-text">你今天，存在过吗？</p>
+    <transition name="fade-abyss">
+      <div v-if="hasSeenIntro && showSplash" class="splash-void">
+        <p class="splash-copy">你今天，存在过吗？</p>
       </div>
     </transition>
 
     <!-- ============================================
          主界面
          ============================================ -->
-    <div v-if="hasSeenIntro && !showSplash" class="main-viewport">
+    <div v-if="hasSeenIntro && !showSplash" class="main-chamber">
 
-      <!-- ============================================
-           顶栏：坐标轴式锚定
-           ============================================ -->
+      <!-- 顶栏 - 科研仪器刻度 -->
       <header class="top-bar" :class="{ 'faded': isSealed }">
-        <!-- 左上：总深度 -->
-        <div class="corner-marker corner-tl">
-          <p class="meta-label">Total Depth</p>
-          <p class="meta-value" :class="{ 'jump': depthJump }">
-            {{ worldDepth.toLocaleString() }}
-            <span class="meta-unit">m</span>
-          </p>
-          <p v-if="currentEpoch" class="meta-epoch">{{ currentEpoch }}</p>
+        <div class="corner corner--tl">
+          <span class="corner-label">总深度</span>
+          <span class="corner-value" :class="{ 'pulse': depthJump }">
+            {{ worldDepth.toLocaleString() }}<em>m</em>
+          </span>
+          <span v-if="currentEpoch" class="corner-epoch">{{ currentEpoch }}</span>
         </div>
-
-        <!-- 右上：今日新增 -->
-        <div class="corner-marker corner-tr">
-          <p class="meta-label">Today's Sink</p>
-          <p class="meta-value-dim">+{{ todayDepth.toLocaleString() }}</p>
+        <div class="corner corner--tr">
+          <span class="corner-label">今日沉积</span>
+          <span class="corner-value corner-value--dim">+{{ todayDepth.toLocaleString() }}m</span>
         </div>
       </header>
 
-      <!-- ============================================
-           中央输入区：视觉统治力
-           ============================================ -->
-      <main class="central-input" :class="{ 'faded': isSealed }">
-        <!-- 核心标题 -->
-        <h1 class="core-title">
+      <!-- 中央输入区 - 地心引力 -->
+      <main class="center-zone" :class="{ 'faded': isSealed }">
+        
+        <h1 class="center-title">
           这里没有围观<br />
-          写下它，然后压入岩层
+          <span class="center-sub">写下它。压入岩层。</span>
         </h1>
 
-        <!-- 输入框容器 -->
-        <div class="input-zone" :style="dynamicSinkStyle">
+        <div 
+          class="input-zone"
+          :class="{ 'focused': isInputFocused }"
+          :style="dynamicSinkStyle"
+        >
           <textarea
             v-model="inputText"
             :maxlength="MAX_CHARS"
             :placeholder="currentPlaceholder"
             :disabled="isSealed || !canInput"
-            class="core-textarea"
+            class="input-field"
+            @focus="isInputFocused = true"
+            @blur="isInputFocused = false"
           ></textarea>
-
-          <!-- 控制栏 -->
-          <div class="input-controls">
-            <span class="char-counter" :class="charColorClass">
-              {{ inputText.length }} / {{ MAX_CHARS }}
-            </span>
-            <button
-              @click="handleSeal"
-              :disabled="!inputText.trim() || !canInput"
-              class="seal-btn"
-            >埋下</button>
-          </div>
+          <div class="input-underline"></div>
         </div>
 
-        <!-- 往日回音（极淡背景） -->
-        <div class="echo-ghost">
-          <p v-for="(r, i) in recentRecords" :key="i" class="echo-line">{{ r.text }}</p>
+        <div class="input-controls">
+          <span class="char-count" :class="charColorClass">
+            {{ inputText.length }} / {{ MAX_CHARS }}
+          </span>
+          <button
+            @click="handleSeal"
+            :disabled="!inputText.trim() || !canInput"
+            class="seal-btn"
+          >封存</button>
+        </div>
+
+        <div class="fossil-echo">
+          <p v-for="(r, i) in recentRecords" :key="i" class="echo-text">{{ r.text }}</p>
         </div>
       </main>
 
-      <!-- ============================================
-           底栏：电影字幕式菜单
-           ============================================ -->
+      <!-- 底栏 -->
       <footer class="bottom-bar" :class="{ 'faded': isSealed }">
-        <button @click="showManifesto = true" class="menu-item">[ 标本盒 ]</button>
-        <button @click="showAbout = true" class="menu-item">[ 溯源 ]</button>
-        <button @click="toggleLamp" class="menu-item">
-          [ {{ isLampLit ? '熄灭' : '划火柴' }} ]
+        <button @click="showManifesto = true" class="menu-btn">[ 标本盒 ]</button>
+        <button @click="showAbout = true" class="menu-btn">[ 溯源 ]</button>
+        <button @click="toggleLamp" class="menu-btn">
+          [ {{ isLampLit ? '熄灭' : '划一根火柴' }} ]
         </button>
-        <button @click="openRecords" class="menu-item">[ 岩层 ]</button>
+        <button @click="openRecords" class="menu-btn">[ 岩层 ]</button>
         <button
           v-if="canShowFossilButton"
           @click="triggerFossilDivination"
           :disabled="isDrillingFossil"
-          class="menu-item menu-item--ghost"
+          class="menu-btn menu-btn--ghost"
         >
           {{ isDrillingFossil ? '钻探中...' : '化石占卜' }}
         </button>
@@ -470,7 +504,7 @@ watch(isExhibitionMode, (newVal) => {
     <!-- ============================================
          静默屏
          ============================================ -->
-    <transition name="fade-slow">
+    <transition name="fade-abyss">
       <div v-if="isSilenced" class="silence-screen">
         <p class="silence-text">已沉入岩层</p>
       </div>
@@ -479,25 +513,25 @@ watch(isExhibitionMode, (newVal) => {
     <!-- ============================================
          月末锁定提示
          ============================================ -->
-    <transition name="fade">
+    <transition name="fade-philosophy">
       <div v-if="showLockMessage" class="lock-screen">
-        <p class="lock-text">岩层需要时间<br />月末会裂开</p>
+        <p class="lock-text">岩层需要时间。<br />月末会裂开。</p>
       </div>
     </transition>
 
     <!-- ============================================
          标本盒
          ============================================ -->
-    <transition name="slide-up">
-      <div v-if="showManifesto" class="panel">
+    <transition name="slide-from-depth">
+      <div v-if="showManifesto" class="panel" @click.self="showManifesto = false">
         <button @click="showManifesto = false" class="panel-close">×</button>
-        <div class="panel-inner">
+        <div class="panel-content">
           <h2 class="panel-title">情绪标本馆</h2>
-          <p class="panel-sub">只保存重量</p>
+          <p class="panel-sub">只保存重量。</p>
           <div class="specimen-list">
-            <div v-for="item in SPECIMENS" :key="item.id" class="specimen-unit">
+            <div v-for="item in SPECIMENS" :key="item.id" class="specimen-item">
               <button @click="toggleSpecimen(item.id)" class="specimen-head">
-                <span class="specimen-id">标本 {{ item.id }}</span>
+                <span class="specimen-id">{{ item.id }}</span>
                 <span class="specimen-type">{{ item.type }}</span>
               </button>
               <div class="specimen-body" :class="{ 'open': activeSpecimen === item.id }">
@@ -505,6 +539,7 @@ watch(isExhibitionMode, (newVal) => {
               </div>
             </div>
           </div>
+          <p class="panel-hint">点击任意处返回</p>
         </div>
       </div>
     </transition>
@@ -512,9 +547,9 @@ watch(isExhibitionMode, (newVal) => {
     <!-- ============================================
          溯源
          ============================================ -->
-    <transition name="fade">
+    <transition name="fade-deep">
       <div v-if="showAbout" class="panel panel--overlay" @click="showAbout = false">
-        <div class="panel-inner" @click.stop>
+        <div class="panel-box" @click.stop>
           <button @click="showAbout = false" class="panel-close">×</button>
           <div class="about-text">
             <p>某个凌晨三点，风穿过空荡的街道。<br />痛苦无声，却真实得无处安放。</p>
@@ -523,6 +558,7 @@ watch(isExhibitionMode, (newVal) => {
             <p>于是有了这片岩层。<br />不是为了遗忘，<br />而是让所有无法言说的重量，<br />在沉默中，被时间压成化石。</p>
             <p class="about-sig">——一个还在读书的人</p>
           </div>
+          <p class="panel-hint">点击任意处返回</p>
         </div>
       </div>
     </transition>
@@ -530,21 +566,23 @@ watch(isExhibitionMode, (newVal) => {
     <!-- ============================================
          月末破裂仪式
          ============================================ -->
-    <div v-if="crackingPhase > 0" class="crack-screen">
+    <div v-if="crackingPhase > 0" class="crack-screen" @click.self="crackingPhase = 0">
       <div v-if="crackingPhase >= 2" class="crack-visual">
-        <div v-if="crackingPhase >= 3" class="crack-beam"></div>
+        <div v-if="crackingPhase >= 3" class="crack-light"></div>
         <svg class="crack-svg" viewBox="0 0 100 1000" preserveAspectRatio="none">
           <path
-            class="crack-line"
-            :class="{ 'glow': crackingPhase >= 3 }"
+            class="crack-path"
+            :class="{ 'tear': crackingPhase >= 3 }"
             d="M50,0 L38,120 L62,280 L42,450 L58,600 L35,780 L65,880 L45,1000"
           />
         </svg>
       </div>
-      <transition name="fade">
-        <div v-if="crackingPhase === 4" class="crack-reveal">
-          <p class="crack-message">压力形成了岩层</p>
-          <button @click="showRecords = true; crackingPhase = 0;" class="crack-action">查看这一月</button>
+      <transition name="fade-philosophy">
+        <div v-if="crackingPhase === 4" class="crack-result">
+          <p class="crack-text">压力形成了岩层</p>
+          <button @click="showRecords = true; crackingPhase = 0;" class="crack-btn">
+            查看这一月
+          </button>
         </div>
       </transition>
     </div>
@@ -552,16 +590,16 @@ watch(isExhibitionMode, (newVal) => {
     <!-- ============================================
          地质剖面
          ============================================ -->
-    <transition name="fade">
-      <div v-if="showRecords" class="panel panel--records">
+    <transition name="fade-deep">
+      <div v-if="showRecords" class="panel" @click.self="showRecords = false">
         <button @click="showRecords = false" class="panel-close">×</button>
-        <div class="panel-inner">
-          <h2 class="panel-title panel-title--small">Stratum Section</h2>
+        <div class="panel-content">
+          <h2 class="panel-title panel-title--sm">地层横截面</h2>
           <div class="records-list">
             <div class="records-axis"></div>
-            <div v-for="record in strataRecords" :key="record.id" class="record-unit">
+            <div v-for="record in strataRecords" :key="record.id" class="record-item">
               <button @click="toggleRecord(strataRecords.indexOf(record))" class="record-head">
-                <div class="record-mark"></div>
+                <div class="record-line"></div>
                 <span class="record-title">{{ record.title }}</span>
               </button>
               <div class="record-body" :class="{ 'open': record.expanded }">
@@ -569,6 +607,7 @@ watch(isExhibitionMode, (newVal) => {
               </div>
             </div>
           </div>
+          <p class="panel-hint">点击任意处返回</p>
         </div>
       </div>
     </transition>
@@ -576,17 +615,19 @@ watch(isExhibitionMode, (newVal) => {
     <!-- ============================================
          化石占卜
          ============================================ -->
-    <transition name="fossil-reveal">
-      <div v-if="fossilRevealed" class="fossil-screen">
+    <transition name="fossil-emerge">
+      <div v-if="fossilRevealed" class="fossil-screen" @click="closeFossil">
+        <button @click.stop="closeFossil" class="fossil-close">×</button>
         <p class="fossil-text">{{ fossilPoem }}</p>
-        <button @click="fossilRevealed = false; fossilPoem = '';" class="fossil-close">关闭</button>
+        <p class="fossil-hint">点击任意处返回</p>
       </div>
     </transition>
 
-    <transition name="fade">
-      <div v-if="fossilError" class="fossil-screen">
-        <p class="fossil-error">{{ fossilError }}</p>
-        <button @click="fossilError = '';" class="fossil-close">[ 返回 ]</button>
+    <transition name="fade-philosophy">
+      <div v-if="fossilError" class="fossil-screen" @click="closeFossilError">
+        <button @click.stop="closeFossilError" class="fossil-close">×</button>
+        <p class="fossil-err">{{ fossilError }}</p>
+        <p class="fossil-hint">点击任意处返回</p>
       </div>
     </transition>
 
@@ -616,279 +657,415 @@ watch(isExhibitionMode, (newVal) => {
 html {
   font-size: 16px;
   -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
-  background-color: #000;
-  color: #333;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  line-height: 1.5;
+  background-color: #030304;
+  color: #C8C8C8;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
   overflow: hidden;
 }
 
-/* 禁止选中 */
 * {
   user-select: none;
   -webkit-user-select: none;
-}
-
-/* 无阴影无圆角 */
-* {
   box-shadow: none !important;
   border-radius: 0 !important;
 }
+
+::-webkit-scrollbar { display: none; }
 </style>
 
 <style scoped>
 /* ============================================
-   根容器
+   根容器 - 深渊质感
    ============================================ */
-.app-root {
+.abyss-root {
   width: 100vw;
   height: 100vh;
   height: 100dvh;
-  background-color: #000;
+  background: 
+    radial-gradient(ellipse at 20% 15%, rgba(18, 16, 20, 0.7) 0%, transparent 45%),
+    radial-gradient(ellipse at 80% 85%, rgba(14, 12, 16, 0.5) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 110%, rgba(10, 8, 12, 0.8) 0%, transparent 55%),
+    linear-gradient(180deg, #040405 0%, #030304 50%, #020203 100%);
   position: relative;
   overflow: hidden;
 }
 
-/* 震动动画 */
+/* 深渊纹理 */
+.abyss-texture {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.6;
+  background-image: url('data:image/svg+xml,%3Csvg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="noise"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="4" stitchTiles="stitch" seed="24"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23noise)" opacity="0.05"/%3E%3C/svg%3E');
+}
+
+/* 深渊呼吸 */
+.abyss-breath {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: 
+    radial-gradient(ellipse at 50% 50%, transparent 30%, rgba(0, 0, 0, 0.15) 100%);
+  animation: abyss-breathe 8s ease-in-out infinite;
+}
+
+@keyframes abyss-breathe {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+
+/* 震动 */
 .shake-x { animation: shake-x 0.2s ease-in-out; }
 @keyframes shake-x {
   0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-2px); }
-  75% { transform: translateX(2px); }
+  25% { transform: translateX(-3px); }
+  75% { transform: translateX(3px); }
 }
 
 .shake-y { animation: shake-y 0.3s ease-in-out; }
 @keyframes shake-y {
   0%, 100% { transform: translateY(0); }
-  30% { transform: translateY(-4px); }
-  60% { transform: translateY(3px); }
+  30% { transform: translateY(-5px); }
+  60% { transform: translateY(4px); }
 }
 
 /* ============================================
-   噪点纹理
+   火柴光效 - 焦灼摇曳
    ============================================ */
-.noise-layer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 1;
-  opacity: 0.03;
-  mix-blend-mode: overlay;
-  background-image: url('data:image/svg+xml,%3Csvg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="noise"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" stitchTiles="stitch"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23noise)"/%3E%3C/svg%3E');
-}
-
-/* ============================================
-   油灯光效
-   ============================================ */
-.lamp-glow {
-  position: absolute;
+.flame-glow {
+  position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 100vmin;
-  height: 100vmin;
-  max-width: 800px;
-  max-height: 800px;
-  background: radial-gradient(circle, rgba(200, 100, 30, 0.15) 0%, rgba(150, 50, 20, 0.08) 40%, transparent 70%);
-  filter: blur(60px);
-  animation: flicker 4s infinite alternate;
+  width: 140vmin;
+  height: 140vmin;
+  max-width: 1100px;
+  max-height: 1100px;
+  background: 
+    radial-gradient(circle at 50% 50%, 
+      rgba(255, 200, 100, 0.35) 0%, 
+      rgba(255, 160, 60, 0.28) 15%,
+      rgba(230, 120, 40, 0.18) 30%,
+      rgba(180, 80, 25, 0.1) 50%, 
+      rgba(120, 50, 15, 0.05) 70%,
+      transparent 85%
+    );
+  filter: blur(50px);
+  animation: flame-tremble 0.08s infinite alternate;
   pointer-events: none;
-  z-index: 2;
+  z-index: 1;
 }
 
-@keyframes flicker {
-  0%, 100% { opacity: 0.9; }
-  25% { opacity: 0.6; }
-  50% { opacity: 1; }
-  75% { opacity: 0.7; }
+@keyframes flame-tremble {
+  0% { 
+    opacity: 0.92; 
+    transform: translate(-50%, -50%) scale(1) rotate(-0.4deg) translateY(0);
+    filter: blur(50px) brightness(1.15) saturate(1.1);
+  }
+  12% { 
+    opacity: 0.65; 
+    transform: translate(-50%, -50%) scale(0.97) rotate(0.6deg) translateY(2px);
+    filter: blur(55px) brightness(0.85) saturate(0.9);
+  }
+  25% { 
+    opacity: 1; 
+    transform: translate(-50%, -50%) scale(1.03) rotate(-0.2deg) translateY(-1px);
+    filter: blur(45px) brightness(1.25) saturate(1.15);
+  }
+  37% { 
+    opacity: 0.78; 
+    transform: translate(-50%, -50%) scale(0.96) rotate(0.8deg) translateY(3px);
+    filter: blur(58px) brightness(0.9) saturate(0.95);
+  }
+  50% { 
+    opacity: 0.88; 
+    transform: translate(-50%, -50%) scale(1.01) rotate(-0.5deg) translateY(1px);
+    filter: blur(52px) brightness(1.1) saturate(1.05);
+  }
+  62% { 
+    opacity: 1; 
+    transform: translate(-50%, -50%) scale(1.04) rotate(0.3deg) translateY(-2px);
+    filter: blur(48px) brightness(1.2) saturate(1.1);
+  }
+  75% { 
+    opacity: 0.72; 
+    transform: translate(-50%, -50%) scale(0.98) rotate(-0.7deg) translateY(2px);
+    filter: blur(56px) brightness(0.88) saturate(0.92);
+  }
+  87% { 
+    opacity: 0.95; 
+    transform: translate(-50%, -50%) scale(1.02) rotate(0.4deg) translateY(0);
+    filter: blur(50px) brightness(1.12) saturate(1.08);
+  }
+  100% { 
+    opacity: 0.82; 
+    transform: translate(-50%, -50%) scale(0.99) rotate(-0.3deg) translateY(1px);
+    filter: blur(53px) brightness(0.95) saturate(0.98);
+  }
+}
+
+/* ============================================
+   引导页 - 系统旁白
+   ============================================ */
+.intro-void {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 64px;
+  background: radial-gradient(ellipse at center, rgba(5, 5, 7, 0.3) 0%, transparent 70%);
+}
+
+.intro-content {
+  max-width: 840px;
+  text-align: center;
+}
+
+.intro-copy {
+  font-size: clamp(22px, 4.5vw, 34px);
+  font-weight: 300;
+  letter-spacing: 0.12em;
+  color: #A8A8A8;
+  text-align: center;
+  white-space: pre-line;
+  line-height: 2.2;
+  text-shadow: 0 0 60px rgba(255, 255, 255, 0.03);
+}
+
+.intro-hint {
+  position: absolute;
+  bottom: 88px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.hint-text {
+  font-size: 11px;
+  letter-spacing: 0.5em;
+  color: rgba(255, 255, 255, 0.4);
+  animation: breathe-hint 4s ease-in-out infinite;
+}
+
+@keyframes breathe-hint {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.6; }
+}
+
+/* ============================================
+   闪屏
+   ============================================ */
+.splash-void {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: #020203;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.splash-copy {
+  font-size: 12px;
+  letter-spacing: 1em;
+  color: rgba(255, 255, 255, 0.15);
+  animation: breathe-hint 2.5s ease-in-out infinite;
 }
 
 /* ============================================
    主视口
    ============================================ */
-.main-viewport {
+.main-chamber {
   position: absolute;
   inset: 0;
   display: grid;
   grid-template-rows: auto 1fr auto;
-  padding: 40px;
+  padding: 60px;
+  z-index: 2;
 }
 
 /* ============================================
-   顶栏：坐标轴式锚定
+   顶栏 - 科研仪器
    ============================================ */
 .top-bar {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  transition: opacity 3s ease-in-out;
+  transition: opacity 3.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.top-bar.faded { opacity: 0.15; }
+.top-bar.faded { opacity: 0.06; }
 
-.corner-marker {
+.corner {
   display: flex;
   flex-direction: column;
 }
 
-.corner-tl { align-items: flex-start; }
-.corner-tr { align-items: flex-end; }
+.corner--tl { align-items: flex-start; }
+.corner--tr { align-items: flex-end; }
 
-.meta-label {
-  font-size: 9px;
-  letter-spacing: 5px;
-  color: #444;
-  text-transform: uppercase;
-  font-family: "SF Mono", "Fira Code", monospace;
-  margin-bottom: 6px;
-}
-
-.meta-value {
-  font-size: 13px;
-  letter-spacing: 2px;
-  color: #555;
-  font-family: "SF Mono", "Fira Code", monospace;
-  transition: transform 0.2s;
-}
-
-.meta-value.jump {
-  transform: translateY(-3px) scale(1.05);
-}
-
-.meta-unit {
+.corner-label {
   font-size: 10px;
-  color: #444;
-  margin-left: 2px;
-}
-
-.meta-value-dim {
-  font-size: 11px;
-  letter-spacing: 2px;
-  color: #444;
+  letter-spacing: 0.2em;
+  color: rgba(255, 255, 255, 0.35);
   font-family: "SF Mono", "Fira Code", monospace;
+  margin-bottom: 12px;
 }
 
-.meta-epoch {
-  font-size: 9px;
-  letter-spacing: 3px;
-  color: #333;
-  margin-top: 8px;
-  animation: breathe 4s ease-in-out infinite;
+.corner-value {
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.55);
+  font-family: "SF Mono", "Fira Code", monospace;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s;
 }
 
-@keyframes breathe {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 0.6; }
+.corner-value.pulse {
+  transform: translateY(-4px) scale(1.08);
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.corner-value em {
+  font-style: normal;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  margin-left: 4px;
+}
+
+.corner-value--dim {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  letter-spacing: 0.1em;
+}
+
+.corner-epoch {
+  font-size: 12px;
+  letter-spacing: 0.4em;
+  color: rgba(255, 255, 255, 0.25);
+  margin-top: 16px;
+  animation: breathe-hint 7s ease-in-out infinite;
 }
 
 /* ============================================
-   中央输入区
+   中央输入区 - 地心引力
    ============================================ */
-.central-input {
+.center-zone {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 48px;
+  gap: 52px;
   position: relative;
-  transition: opacity 3s ease-in-out;
+  transition: opacity 3.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.central-input.faded { opacity: 0; }
+.center-zone.faded { opacity: 0; }
 
-.core-title {
-  font-size: 16px;
-  letter-spacing: 4px;
-  color: #444;
+.center-title {
+  font-size: clamp(26px, 4vw, 40px);
+  font-weight: 200;
+  letter-spacing: 0.15em;
+  color: #989898;
   text-align: center;
-  line-height: 2.2;
-  font-weight: 300;
+  line-height: 2;
 }
 
-@media (min-width: 640px) {
-  .core-title {
-    font-size: 18px;
-    letter-spacing: 8px;
-    line-height: 2;
-  }
+.center-sub {
+  font-weight: 300;
+  color: #666;
+  font-size: 0.65em;
 }
 
 .input-zone {
   width: 100%;
-  max-width: 520px;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
+  max-width: 680px;
+  position: relative;
 }
 
-.core-textarea {
+.input-field {
   width: 100%;
-  height: 120px;
+  height: 168px;
   background: transparent;
   border: none;
   outline: none;
   resize: none;
   font-size: 18px;
-  color: #555;
-  letter-spacing: 1px;
-  line-height: 2;
-  padding: 0 0 16px;
+  font-weight: 300;
+  color: #CCCCCC;
+  letter-spacing: 0.05em;
+  line-height: 2.4;
+  padding: 0 0 28px;
   font-family: inherit;
-  caret-color: rgba(138, 129, 124, 0.5);
+  caret-color: rgba(200, 200, 200, 0.35);
 }
 
-.core-textarea::placeholder {
-  color: #333;
-  opacity: 0.5;
+.input-field::placeholder {
+  color: rgba(255, 255, 255, 0.25);
+  font-weight: 300;
 }
 
-.core-textarea:disabled {
-  opacity: 0.3;
+.input-field:disabled {
+  opacity: 0.2;
 }
 
-/* 下划线 */
-.input-zone::after {
-  content: '';
-  display: block;
+.input-underline {
   height: 1px;
-  background: #222;
-  transition: background 0.5s, opacity 0.5s;
+  background: #121212;
+  position: relative;
 }
 
-.core-textarea:focus ~ .input-zone::after,
-.input-zone:focus-within::after {
-  background: #333;
+.input-underline::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 100%;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, #555 0%, #333 100%);
+  transition: right 1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.input-zone.focused .input-underline::after {
+  right: 0;
 }
 
 .input-controls {
+  width: 100%;
+  max-width: 680px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-top: 16px;
 }
 
-.char-counter {
-  font-size: 10px;
-  letter-spacing: 3px;
-  color: #333;
+.char-count {
+  font-size: 11px;
+  letter-spacing: 0.2em;
   font-family: "SF Mono", "Fira Code", monospace;
+  color: rgba(255, 255, 255, 0.3);
 }
 
 .seal-btn {
-  font-size: 10px;
-  letter-spacing: 4px;
-  color: #444;
+  font-size: 12px;
+  letter-spacing: 0.35em;
+  color: rgba(255, 255, 255, 0.45);
   background: transparent;
   border: none;
   cursor: pointer;
-  padding: 8px 0;
-  transition: color 0.3s, opacity 0.3s;
+  padding: 12px 0;
+  transition: color 0.6s cubic-bezier(0.4, 0, 0.2, 1), letter-spacing 0.6s;
   font-family: inherit;
 }
 
@@ -898,31 +1075,31 @@ body {
 }
 
 .seal-btn:not(:disabled):hover {
-  color: #666;
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.5em;
 }
 
-/* 往日回音 */
-.echo-ghost {
+.fossil-echo {
   position: absolute;
-  bottom: -80px;
+  bottom: -130px;
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
-  max-width: 400px;
+  max-width: 500px;
   text-align: center;
   pointer-events: none;
 }
 
-.echo-line {
+.echo-text {
   font-size: 12px;
-  color: #333;
-  letter-spacing: 1px;
-  line-height: 2;
-  opacity: 0.15;
+  color: rgba(255, 255, 255, 0.1);
+  letter-spacing: 0.02em;
+  line-height: 2.6;
+  opacity: 0.12;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  filter: blur(1px);
+  filter: blur(0.2px);
 }
 
 /* ============================================
@@ -931,96 +1108,34 @@ body {
 .bottom-bar {
   display: flex;
   justify-content: center;
-  gap: 32px;
+  gap: 52px;
   flex-wrap: wrap;
-  padding-top: 16px;
-  transition: opacity 2s ease-in-out;
+  transition: opacity 3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .bottom-bar.faded { opacity: 0; }
 
-.menu-item {
-  font-size: 9px;
-  letter-spacing: 4px;
-  color: #333;
+.menu-btn {
+  font-size: 12px;
+  letter-spacing: 0.25em;
+  color: rgba(255, 255, 255, 0.4);
   background: transparent;
   border: none;
   cursor: pointer;
-  padding: 4px 0;
-  transition: color 0.3s, opacity 0.3s;
+  padding: 10px 0;
+  transition: color 0.6s;
   font-family: inherit;
 }
 
-.menu-item:hover {
-  color: #555;
+.menu-btn:hover { color: rgba(255, 255, 255, 0.85); }
+
+.menu-btn--ghost {
+  opacity: 0.6;
 }
 
-.menu-item--ghost {
-  color: #2a2a2a;
-  opacity: 0.5;
-}
+.menu-btn--ghost:hover { opacity: 0.95; }
 
-.menu-item--ghost:hover {
-  color: #444;
-  opacity: 0.8;
-}
-
-.menu-item:disabled {
-  opacity: 0.1;
-  cursor: not-allowed;
-}
-
-/* ============================================
-   引导页
-   ============================================ */
-.intro-screen {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.intro-text {
-  font-size: 18px;
-  letter-spacing: 3px;
-  color: #555;
-  text-align: center;
-  white-space: pre-line;
-  line-height: 2.5;
-}
-
-.intro-hint {
-  position: absolute;
-  bottom: 80px;
-  font-size: 9px;
-  letter-spacing: 6px;
-  color: #333;
-  animation: breathe 3s ease-in-out infinite;
-}
-
-/* ============================================
-   闪屏
-   ============================================ */
-.splash-screen {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  background: #000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.splash-text {
-  font-size: 11px;
-  letter-spacing: 8px;
-  color: #333;
-  animation: breathe 2s ease-in-out infinite;
-}
+.menu-btn:disabled { opacity: 0.15; cursor: not-allowed; }
 
 /* ============================================
    静默屏
@@ -1028,8 +1143,8 @@ body {
 .silence-screen {
   position: fixed;
   inset: 0;
-  z-index: 70;
-  background: #000;
+  z-index: 80;
+  background: #010102;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1037,9 +1152,9 @@ body {
 }
 
 .silence-text {
-  font-size: 10px;
-  letter-spacing: 10px;
-  color: #333;
+  font-size: 12px;
+  letter-spacing: 1em;
+  color: rgba(255, 255, 255, 0.15);
 }
 
 /* ============================================
@@ -1048,8 +1163,8 @@ body {
 .lock-screen {
   position: fixed;
   inset: 0;
-  z-index: 80;
-  background: rgba(0, 0, 0, 0.98);
+  z-index: 85;
+  background: rgba(1, 1, 2, 0.99);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1057,254 +1172,174 @@ body {
 }
 
 .lock-text {
-  font-size: 10px;
-  letter-spacing: 6px;
-  color: #333;
+  font-size: 12px;
+  letter-spacing: 0.35em;
+  color: rgba(255, 255, 255, 0.2);
   text-align: center;
-  line-height: 2.5;
+  line-height: 3;
 }
 
 /* ============================================
-   面板通用
+   面板
    ============================================ */
 .panel {
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: #000;
+  background: #030304;
   overflow-y: auto;
+  cursor: pointer;
 }
 
 .panel--overlay {
-  background: rgba(0, 0, 0, 0.95);
+  background: rgba(3, 3, 4, 0.98);
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.panel--records {
-  padding-top: 80px;
+  cursor: pointer;
 }
 
 .panel-close {
   position: fixed;
-  top: 40px;
-  right: 40px;
-  font-size: 20px;
-  color: #333;
+  top: 52px;
+  right: 60px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.5);
   background: transparent;
   border: none;
   cursor: pointer;
-  opacity: 0.4;
-  transition: opacity 0.3s;
+  opacity: 0.35;
+  transition: opacity 0.6s;
   z-index: 10;
 }
 
-.panel-close:hover { opacity: 0.8; }
+.panel-close:hover { opacity: 0.85; }
 
-.panel-inner {
-  max-width: 600px;
+.panel-content {
+  max-width: 720px;
   margin: 0 auto;
-  padding: 80px 40px 60px;
+  padding: 100px 60px 80px;
+  cursor: default;
+}
+
+.panel-box {
+  max-width: 640px;
+  padding: 60px;
+  cursor: default;
 }
 
 .panel-title {
-  font-size: 14px;
-  letter-spacing: 8px;
-  color: #444;
+  font-size: 20px;
+  letter-spacing: 0.4em;
+  color: rgba(255, 255, 255, 0.75);
   text-align: center;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
+  font-weight: 300;
 }
 
-.panel-title--small {
-  font-size: 10px;
-  letter-spacing: 10px;
+.panel-title--sm {
+  font-size: 16px;
+  letter-spacing: 0.5em;
 }
 
 .panel-sub {
-  font-size: 9px;
-  letter-spacing: 4px;
-  color: #333;
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  color: rgba(255, 255, 255, 0.35);
   text-align: center;
-  margin-bottom: 48px;
+  margin-bottom: 80px;
 }
 
-/* ============================================
-   标本列表
-   ============================================ */
+.panel-hint {
+  text-align: center;
+  margin-top: 72px;
+  font-size: 11px;
+  letter-spacing: 0.35em;
+  color: rgba(255, 255, 255, 0.25);
+  animation: breathe-hint 4s ease-in-out infinite;
+}
+
+/* 标本列表 */
 .specimen-list {
   display: flex;
   flex-direction: column;
 }
 
-.specimen-unit {
-  border-top: 1px solid #1a1a1a;
+.specimen-item {
+  border-top: 1px solid #0d0d0d;
 }
 
 .specimen-head {
   width: 100%;
-  padding: 24px 0;
+  padding: 36px 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
   background: transparent;
   border: none;
   cursor: pointer;
-  text-align: left;
 }
 
 .specimen-id {
-  font-size: 11px;
-  letter-spacing: 2px;
-  color: #444;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.5);
   font-family: "SF Mono", monospace;
 }
 
 .specimen-type {
-  font-size: 9px;
-  letter-spacing: 3px;
-  color: #333;
-  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.25em;
+  color: rgba(255, 255, 255, 0.3);
 }
 
 .specimen-body {
   max-height: 0;
   overflow: hidden;
   opacity: 0;
-  transition: max-height 0.6s ease, opacity 0.6s ease, padding 0.6s ease;
+  transition: max-height 1s cubic-bezier(0.4, 0, 0.2, 1), opacity 1s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .specimen-body.open {
-  max-height: 200px;
+  max-height: 240px;
   opacity: 1;
-  padding-bottom: 24px;
+  padding-bottom: 36px;
 }
 
 .specimen-text {
+  font-size: 14px;
   font-size: 13px;
-  color: #555;
-  letter-spacing: 1px;
-  line-height: 2.2;
-  padding-left: 16px;
-  border-left: 1px solid #222;
+  color: rgba(255, 255, 255, 0.45);
+  letter-spacing: 0.02em;
+  line-height: 2.6;
+  padding-left: 28px;
+  border-left: 1px solid #141414;
 }
 
-/* ============================================
-   关于文本
-   ============================================ */
+/* 溯源 */
 .about-text {
+  font-size: 14px;
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 44px;
   text-align: center;
-  font-size: 13px;
-  color: #444;
-  letter-spacing: 2px;
-  line-height: 2.4;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  letter-spacing: 0.04em;
+  line-height: 2.8;
 }
 
 .about-sig {
-  font-size: 11px;
-  color: #333;
-  letter-spacing: 3px;
-  margin-top: 24px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.3);
+  letter-spacing: 0.18em;
+  margin-top: 36px;
 }
 
-/* ============================================
-   破裂仪式
-   ============================================ */
-.crack-screen {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  background: #000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-
-.crack-visual {
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-
-.crack-beam {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 1px;
-  height: 60%;
-  background: #555;
-  filter: blur(8px);
-  opacity: 0.6;
-}
-
-.crack-svg {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 40px;
-  height: 80%;
-  opacity: 0.5;
-}
-
-.crack-line {
-  fill: none;
-  stroke: #222;
-  stroke-width: 1.5;
-  stroke-dasharray: 2000;
-  stroke-dashoffset: 2000;
-  animation: draw 1.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-}
-
-@keyframes draw { to { stroke-dashoffset: 0; } }
-
-.crack-line.glow {
-  stroke: #555;
-  filter: drop-shadow(0 0 3px rgba(85, 85, 85, 0.5));
-}
-
-.crack-reveal {
-  position: absolute;
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 40px;
-}
-
-.crack-message {
-  font-size: 11px;
-  letter-spacing: 8px;
-  color: #444;
-}
-
-.crack-action {
-  font-size: 9px;
-  letter-spacing: 4px;
-  color: #333;
-  background: transparent;
-  border: 1px solid #222;
-  padding: 12px 24px;
-  cursor: pointer;
-  transition: border-color 0.3s, color 0.3s;
-}
-
-.crack-action:hover {
-  border-color: #444;
-  color: #555;
-}
-
-/* ============================================
-   地质剖面
-   ============================================ */
+/* 地质剖面 */
 .records-list {
   position: relative;
-  padding-left: 48px;
+  padding-left: 72px;
 }
 
 .records-axis {
@@ -1313,18 +1348,18 @@ body {
   top: 0;
   bottom: 0;
   width: 1px;
-  background: #1a1a1a;
+  background: #0a0a0a;
 }
 
-.record-unit {
-  padding: 20px 0;
-  border-bottom: 1px solid #1a1a1a;
+.record-item {
+  padding: 32px 0;
+  border-bottom: 1px solid #0a0a0a;
 }
 
 .record-head {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 28px;
   background: transparent;
   border: none;
   cursor: pointer;
@@ -1332,50 +1367,139 @@ body {
   width: 100%;
 }
 
-.record-mark {
-  width: 48px;
+.record-line {
+  width: 72px;
   height: 1px;
-  background: #222;
+  background: #141414;
   transform-origin: left;
-  transition: background 0.3s, width 0.3s;
+  transition: background 0.5s, width 0.5s;
 }
 
-.record-head:hover .record-mark {
-  background: #444;
-  width: 64px;
+.record-head:hover .record-line {
+  background: #2a2a2a;
+  width: 90px;
 }
 
 .record-title {
-  font-size: 10px;
-  letter-spacing: 3px;
-  color: #333;
+  font-size: 11px; letter-spacing: 0.2em;
+  color: rgba(255, 255, 255, 0.3);
   font-family: "SF Mono", monospace;
-  transition: color 0.3s;
+  transition: color 0.5s;
 }
 
-.record-head:hover .record-title {
-  color: #555;
-}
+.record-head:hover .record-title { color: rgba(255, 255, 255, 0.6); }
 
 .record-body {
   max-height: 0;
   overflow: hidden;
   opacity: 0;
-  margin-left: 64px;
-  transition: max-height 0.5s ease, opacity 0.5s ease;
+  margin-left: 100px;
+  transition: max-height 0.7s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.7s;
 }
 
 .record-body.open {
-  max-height: 150px;
+  max-height: 180px;
   opacity: 1;
-  padding-top: 16px;
+  padding-top: 24px;
 }
 
 .record-text {
   font-size: 12px;
-  color: #444;
-  letter-spacing: 1px;
-  line-height: 2;
+  color: rgba(255, 255, 255, 0.35);
+  letter-spacing: 0.02em;
+  line-height: 2.4;
+}
+
+/* ============================================
+   破裂仪式
+   ============================================ */
+.crack-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: #010102;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.crack-visual {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.crack-light {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 45%;
+  background: linear-gradient(180deg, transparent 0%, #444 30%, #555 50%, #444 70%, transparent 100%);
+  filter: blur(3px);
+  opacity: 0.7;
+}
+
+.crack-svg {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 28px;
+  height: 65%;
+  opacity: 0.8;
+}
+
+.crack-path {
+  fill: none;
+  stroke: #101010;
+  stroke-width: 1;
+  stroke-dasharray: 2000;
+  stroke-dashoffset: 2000;
+  animation: crack-grow 1.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+@keyframes crack-grow { to { stroke-dashoffset: 0; } }
+
+.crack-path.tear {
+  stroke: #404040;
+  stroke-width: 2;
+  filter: drop-shadow(0 0 6px rgba(100, 100, 100, 0.6));
+  transition: stroke 0.6s cubic-bezier(0.4, 0, 0.2, 1), stroke-width 0.4s, filter 0.6s;
+}
+
+.crack-result {
+  position: absolute;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 64px;
+}
+
+.crack-text {
+  font-size: 11px;
+  letter-spacing: 1em;
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.crack-btn {
+  font-size: 12px;
+  letter-spacing: 0.4em;
+  color: rgba(255, 255, 255, 0.35);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 18px 36px;
+  cursor: pointer;
+  transition: border-color 0.5s, color 0.5s;
+}
+
+.crack-btn:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.6);
 }
 
 /* ============================================
@@ -1384,54 +1508,67 @@ body {
 .fossil-screen {
   position: fixed;
   inset: 0;
-  z-index: 200;
-  background: #000;
+  z-index: 300;
+  background: #010102;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-}
-
-.fossil-text {
-  font-size: 16px;
-  letter-spacing: 6px;
-  color: #555;
-  text-align: center;
-  line-height: 2.5;
-  filter: blur(20px);
-  opacity: 0;
-  animation: fossil-appear 4s ease-out forwards;
-}
-
-@keyframes fossil-appear {
-  0% { filter: blur(20px); opacity: 0; }
-  30% { filter: blur(15px); opacity: 0.2; }
-  60% { filter: blur(8px); opacity: 0.5; }
-  100% { filter: blur(0); opacity: 1; }
+  cursor: pointer;
 }
 
 .fossil-close {
-  position: absolute;
-  bottom: 60px;
-  font-size: 9px;
-  letter-spacing: 5px;
-  color: #333;
+  position: fixed;
+  top: 52px;
+  right: 60px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
   background: transparent;
   border: none;
   cursor: pointer;
-  opacity: 0.4;
-  transition: opacity 0.3s;
+  opacity: 0.3;
+  transition: opacity 0.6s;
+  z-index: 10;
 }
 
 .fossil-close:hover { opacity: 0.8; }
 
-.fossil-error {
-  font-size: 10px;
-  letter-spacing: 4px;
-  color: #333;
+.fossil-text {
+  font-size: 17px;
+  letter-spacing: 0.3em;
+  color: rgba(255, 255, 255, 0.5);
   text-align: center;
-  line-height: 2.5;
+  line-height: 3;
+  filter: blur(10px);
+  opacity: 0;
+  animation: fossil-uncover 6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  max-width: 760px;
+  padding: 0 56px;
+}
+
+@keyframes fossil-uncover {
+  0% { filter: blur(10px); opacity: 0; }
+  40% { filter: blur(8px); opacity: 0.08; }
+  70% { filter: blur(3px); opacity: 0.25; }
+  100% { filter: blur(0); opacity: 1; }
+}
+
+.fossil-err {
+  font-size: 12px;
+  letter-spacing: 0.4em;
+  color: rgba(255, 255, 255, 0.25);
+  text-align: center;
+  line-height: 3;
+}
+
+.fossil-hint {
+  position: absolute;
+  bottom: 88px;
+  font-size: 11px;
+  letter-spacing: 0.4em;
+  color: rgba(255, 255, 255, 0.2);
+  animation: breathe-hint 4s ease-in-out infinite;
 }
 
 /* ============================================
@@ -1446,46 +1583,48 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 60px 40px;
+  padding: 88px 60px;
   pointer-events: none;
 }
 
 .resonance-text {
-  font-size: 12px;
-  letter-spacing: 6px;
-  color: #444;
+  font-size: 10px;
+  letter-spacing: 0.7em;
+  color: rgba(255, 255, 255, 0.35);
   text-align: center;
-  line-height: 2;
+  line-height: 2.4;
 }
 
-/* 无声共鸣动画 */
-.resonance-enter-active { transition: opacity 5s ease-in; }
+.resonance-enter-active { transition: opacity 7s cubic-bezier(0.4, 0, 0.2, 1); }
 .resonance-enter-from { opacity: 0; }
-.resonance-leave-active { transition: opacity 3s ease-out; }
+.resonance-leave-active { transition: opacity 5s cubic-bezier(0.4, 0, 0.2, 1); }
 .resonance-leave-to { opacity: 0; }
 
 /* ============================================
    过渡动画
    ============================================ */
-.fade-enter-active, .fade-leave-active { transition: opacity 1.5s ease-in-out; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
+.fade-philosophy-enter-active, .fade-philosophy-leave-active { transition: opacity 2.5s cubic-bezier(0.4, 0, 0.2, 1); }
+.fade-philosophy-enter-from, .fade-philosophy-leave-to { opacity: 0; }
 
-.fade-slow-enter-active, .fade-slow-leave-active { transition: opacity 2.5s ease-in-out; }
-.fade-slow-enter-from, .fade-slow-leave-to { opacity: 0; }
+.fade-deep-enter-active, .fade-deep-leave-active { transition: opacity 3s cubic-bezier(0.4, 0, 0.2, 1); }
+.fade-deep-enter-from, .fade-deep-leave-to { opacity: 0; }
 
-.slide-up-enter-active, .slide-up-leave-active { transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
-.slide-up-enter-from, .slide-up-leave-to { transform: translateY(100%); }
+.fade-abyss-enter-active, .fade-abyss-leave-active { transition: opacity 3.5s cubic-bezier(0.4, 0, 0.2, 1); }
+.fade-abyss-enter-from, .fade-abyss-leave-to { opacity: 0; }
 
-.fossil-reveal-enter-active { transition: opacity 1s ease-in; }
-.fossil-reveal-enter-from { opacity: 0; }
-.fossil-reveal-leave-active { transition: opacity 0.8s ease-out; }
-.fossil-reveal-leave-to { opacity: 0; }
+.slide-from-depth-enter-active, .slide-from-depth-leave-active { transition: transform 1s cubic-bezier(0.22, 1, 0.36, 1), opacity 1s; }
+.slide-from-depth-enter-from, .slide-from-depth-leave-to { transform: translateY(100%); opacity: 0; }
+
+.fossil-emerge-enter-active { transition: opacity 2s cubic-bezier(0.4, 0, 0.2, 1); }
+.fossil-emerge-enter-from { opacity: 0; }
+.fossil-emerge-leave-active { transition: opacity 1.5s cubic-bezier(0.4, 0, 0.2, 1); }
+.fossil-emerge-leave-to { opacity: 0; }
 
 /* ============================================
-   选中样式
+   选中
    ============================================ */
-.app-root ::selection {
-  background: rgba(85, 85, 85, 0.2);
-  color: #555;
+.abyss-root ::selection {
+  background: rgba(70, 70, 70, 0.1);
+  color: #666;
 }
 </style>

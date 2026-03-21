@@ -83,10 +83,8 @@ export async function saveSentenceToCloud(content) {
     console.warn('[Supabase] 句子内容为空');
     return false;
   }
-  // 此处无代码插入，与需求无关。若你需要自动化提交本文件到 github，请在你的终端手动运行下述命令：
-  // git add melting-self/src/utils/supabase.js
-  // git commit -m "feat(supabase): 完善 saveSentenceToCloud 的内容校验和注释"
-  // git push
+
+
 
   try {
     const { data, error } = await supabaseClient
